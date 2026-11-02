@@ -1,0 +1,14 @@
+{
+  "articles": [
+    {
+      "id": "help_general_1",
+      "audience": "GENERAL",
+      "title": "如何提交任务",
+      "summary": "提交说明",
+      "body": "在任务详情提交文件",
+      "category": "GENERAL",
+      "appVersionRange": "1.0.*",
+      "published": true
+    }
+  ]
+}

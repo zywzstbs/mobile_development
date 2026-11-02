@@ -1,0 +1,42 @@
+P15 构建记录
+=============
+
+日期：2026-10-31T22:45:00+08:00
+项目版本：0.1.0-P15
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+数据库
+------
+PostgreSQL 17.11，test schema=gulupai_test
+Flyway V001～V018
+
+验证摘要
+--------
+./mvnw test:  38 通过
+./mvnw verify: 98 集成通过；总计 136 通过，0 失败
+  SupportP15IT 2
+  NoticeP14IT 3
+  CommunityP13IT 3
+  DiceP12IT 4
+  ProfileP11IT 5
+  ReportP10IT 5
+  GradeP09IT 3
+  MergeP08IT 3
+  GovP07IT 4
+  DeliveryP06IT 6
+  TaskP05IT 6
+  FileP05FIT 4
+  RoleP04IT 6
+  TeamP03IT 7
+  TeachingP02BIT 5
+  CourseP02IT 14
+  AuthP01IT 16
+  FlywayMigrationIT 2
+
+P15 关键验证
+------------
+- 匿名通用帮助、支持路由、无路由 503
+- 工单 clientRequestId 重放、接受、回复、本人解决、7 天重开
+- 转交目标无权限 422；授权后转交成功
+- 举报片段必须来自当前正文；错误片段 422
+- CONTENT_REVIEW 受理/记录/关闭；原文保持可读

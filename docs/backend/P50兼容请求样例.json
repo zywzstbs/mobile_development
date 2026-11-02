@@ -1,0 +1,126 @@
+{
+  "notice": "契约测试样例，不是当前真实请求。ID、revision、时间必须替换为测试fixture当前值；样例之间非连续脚本。",
+  "cases": [
+    {
+      "id": "C01",
+      "interface": "TASK-05",
+      "request": {
+        "title": "演示正式任务",
+        "description": "",
+        "mode": "ASSESSED",
+        "stageId": "stage_demo",
+        "criteria": [],
+        "assessedPlan": {
+          "ownerId": "student_leader",
+          "dueAt": "2027-01-10T12:00:00Z",
+          "units": [
+            {
+              "clientKey": "unit_a",
+              "title": "交付项",
+              "points": "10.00",
+              "shares": [
+                {
+                  "userId": "student_leader",
+                  "points": "10.00",
+                  "responsibility": "完成本项"
+                }
+              ],
+              "criteria": [
+                {
+                  "text": "可演示"
+                }
+              ]
+            }
+          ],
+          "reviewerPolicy": {
+            "userId": "student_reviewer",
+            "kind": "INDEPENDENT"
+          }
+        }
+      }
+    },
+    {
+      "id": "C02",
+      "interface": "ROLE-21",
+      "request": {
+        "expectedRevision": 1,
+        "roles": [
+          {
+            "id": "role_existing",
+            "clientKey": "old_row",
+            "roleName": "开发",
+            "duty": "开发功能",
+            "total": 2
+          },
+          {
+            "id": "",
+            "clientKey": "new_row",
+            "roleName": "测试",
+            "duty": "验证功能",
+            "total": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "C03",
+      "interface": "TASK-09",
+      "request": {
+        "expectedRevision": 1,
+        "stages": [
+          {
+            "id": "stage_existing",
+            "name": "开发",
+            "order": 0
+          },
+          {
+            "id": "",
+            "name": "测试",
+            "order": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "C04-item",
+      "interface": "GOV-22",
+      "request": {
+        "expectedRevision": 3,
+        "planVersion": 2,
+        "itemIds": [
+          "handover_leader"
+        ],
+        "decision": "ACCEPT",
+        "reason": ""
+      }
+    },
+    {
+      "id": "C04-alias",
+      "interface": "GOV-22",
+      "request": {
+        "expectedRevision": 3,
+        "planVersion": 2,
+        "itemIds": [],
+        "decision": "ACCEPT",
+        "reason": ""
+      }
+    },
+    {
+      "id": "C05",
+      "interface": "DELIVERY-16",
+      "request": {
+        "baseAgreementVersion": 1,
+        "changes": [
+          {
+            "unitId": "unit_a",
+            "baseUnitRevision": 1,
+            "fields": {
+              "dueAt": "2027-01-11T12:00:00Z"
+            }
+          }
+        ],
+        "reason": "调整本分项交付时间"
+      }
+    }
+  ]
+}

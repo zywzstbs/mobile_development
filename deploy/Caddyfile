@@ -1,0 +1,7 @@
+{$API_DOMAIN:localhost} {
+	encode gzip
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy app:8080
+}

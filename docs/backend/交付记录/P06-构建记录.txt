@@ -1,0 +1,37 @@
+P06 构建记录
+=============
+
+构建日期：2026-10-31T19:50:00+08:00
+项目版本：0.1.0-P06
+构建结果：BUILD SUCCESS（./mvnw test 与 ./mvnw verify）
+
+工具链
+------
+Java:    Eclipse Temurin 21.0.13
+Maven:   Apache Maven 3.9.11
+OS:      Linux 6.18.54.1-microsoft-standard-WSL2 x86_64
+
+数据库
+------
+PostgreSQL 17.11（开发机本地实例，端口 55432；test schema=gulupai_test）
+Flyway 迁移：V001～V009，本阶段新增 V009__delivery.sql
+
+验证摘要
+--------
+./mvnw test:
+  Tests run: 36, Failures: 0, Errors: 0, Skipped: 0
+
+./mvnw verify:
+  Tests run: 66, Failures: 0, Errors: 0, Skipped: 0
+  DeliveryP06IT        6
+  FileP05FIT           4
+  TaskP05IT            6
+  RoleP04IT            6
+  TeamP03IT            7
+  TeachingP02BIT       5
+  CourseP02IT         14
+  AuthP01IT           16
+  FlywayMigrationIT    2
+
+无有效交接时重签拒绝。未执行 Android 联调，未部署云服务器。
+随后 DeliveryP06IT 增补断言后再次通过，生产代码未改。

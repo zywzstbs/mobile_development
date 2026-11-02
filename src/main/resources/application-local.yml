@@ -1,0 +1,14 @@
+# 本地开发：使用本机 PostgreSQL；凭据仅从环境变量读取，不写入仓库。
+app:
+  environment: ${APP_ENV:local}
+  auth:
+    access-ttl: 30m
+    refresh-ttl: 7d
+  idempotency:
+    # 仅本地开发默认值；生产必须通过 IDEMPOTENCY_ENCRYPTION_KEY 提供独立密钥。
+    encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:bG9jYWwtZGV2LW9ubHkta2V5LTAxMjM0NTY3ODlhYmM=}
+    key-id: ${IDEMPOTENCY_KEY_ID:local-dev-v1}
+
+logging:
+  level:
+    org.springframework.jdbc.core: INFO

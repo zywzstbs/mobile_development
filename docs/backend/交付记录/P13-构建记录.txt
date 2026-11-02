@@ -1,0 +1,41 @@
+P13 构建记录
+=============
+
+日期：2026-10-31T22:15:00+08:00
+项目版本：0.1.0-P13
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+数据库
+------
+PostgreSQL 17.11，test schema=gulupai_test
+Flyway V001～V016（新增 V016 board_and_chat）
+
+验证摘要
+--------
+./mvnw test:  38 通过
+./mvnw verify: 93 集成通过；总计 131 通过，0 失败
+  CommunityP13IT 3
+  DiceP12IT 4
+  ProfileP11IT 5
+  ReportP10IT 5
+  GradeP09IT 3
+  MergeP08IT 3
+  GovP07IT 4
+  DeliveryP06IT 6
+  TaskP05IT 6
+  FileP05FIT 4
+  RoleP04IT 6
+  TeamP03IT 7
+  TeachingP02BIT 5
+  CourseP02IT 14
+  AuthP01IT 16
+  FlywayMigrationIT 2
+
+P13 关键验证
+------------
+- 主题/回复/修订/解决/关注/撤回
+- 撤回后主题/回复正文与历史占位为 null
+- 非组长置顶 403
+- 聊天 sequence、clientMessageId 重放与异正文 409
+- 120 秒撤回与变更流
+- 阅读游标 latest 上限、归档只读、非成员 403

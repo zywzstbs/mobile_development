@@ -1,0 +1,42 @@
+P14 构建记录
+=============
+
+日期：2026-10-31T22:28:00+08:00
+项目版本：0.1.0-P14
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+数据库
+------
+PostgreSQL 17.11，test schema=gulupai_test
+Flyway V001～V017（新增 V017 announcements_and_notifications）
+
+验证摘要
+--------
+./mvnw test:  38 通过
+./mvnw verify: 96 集成通过；总计 134 通过，0 失败
+  NoticeP14IT 3
+  CommunityP13IT 3
+  DiceP12IT 4
+  ProfileP11IT 5
+  ReportP10IT 5
+  GradeP09IT 3
+  MergeP08IT 3
+  GovP07IT 4
+  DeliveryP06IT 6
+  TaskP05IT 6
+  FileP05FIT 4
+  RoleP04IT 6
+  TeamP03IT 7
+  TeachingP02BIT 5
+  CourseP02IT 14
+  AuthP01IT 16
+  FlywayMigrationIT 2
+
+P14 关键验证
+------------
+- 预览 token 一次性、发布、接收快照
+- 阅读/知悉绑定版本；旧版本知悉 409
+- 格式修订只改 displayRevision；实质修订递增 contentVersion
+- 回执分母固定、通知去重、偏好 revision
+- 助理撤权后修订 403；非读者 403
+- 催阅 24 小时限制；清提示不代阅读/知悉

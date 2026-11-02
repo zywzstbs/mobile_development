@@ -1,0 +1,10 @@
+DELETE FROM operation_receipt;
+DELETE FROM access_token;
+DELETE FROM auth_session;
+DELETE FROM audit_event;
+DELETE FROM rate_window;
+DELETE FROM import_batch;
+DELETE FROM user_role;
+DELETE FROM user_profile;
+DELETE FROM app_user;
+DELETE FROM school;

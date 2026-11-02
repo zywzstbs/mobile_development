@@ -1,0 +1,46 @@
+P12 构建记录
+=============
+
+日期：2026-10-31T22:00:00+08:00
+项目版本：0.1.0-P12
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+数据库
+------
+PostgreSQL 17.11，test schema=gulupai_test
+Flyway V001～V015（新增 V015 dice_sessions）
+
+验证摘要
+--------
+./mvnw test:  38 通过
+./mvnw verify: 90 集成通过；总计 128 通过，0 失败
+  DiceP12IT 4
+  ProfileP11IT 5
+  ReportP10IT 5
+  GradeP09IT 3
+  MergeP08IT 3
+  GovP07IT 4
+  DeliveryP06IT 6
+  TaskP05IT 6
+  FileP05FIT 4
+  RoleP04IT 6
+  TeamP03IT 7
+  TeachingP02BIT 5
+  CourseP02IT 14
+  AuthP01IT 16
+  FlywayMigrationIT 2
+
+P12 关键验证
+------------
+- MAX 唯一胜者与收齐前隐藏他人点数
+- 收齐后揭晓、ACCEPT 后 claim 标 CLAIMED
+- 三轮并列 UNRESOLVED
+- TARGET 无人命中保留候选
+- DECLINE 终止会话
+- 他人先 claim 使会话 INVALIDATED
+- 点数唯一约束防止重摇；random 源可注入测试，运行时 SecureRandom
+
+说明
+----
+超时当前在请求时惰性置 EXPIRED；后台定时任务留 P16。
+沙箱验证使用本地 PostgreSQL 55432、-Dmaven.repo.local=$PWD/.tools/m2。

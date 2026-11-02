@@ -1,0 +1,84 @@
+# 单机演示：只对访问者开放代理的 80/443。数据库和应用端口留在 Compose 网络内。
+# 镜像标签已固定；上云前仍需改成具体 digest。本文件不包含口令。
+services:
+  db:
+    image: postgres:17.6
+    environment:
+      POSTGRES_USER: gulupai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: gulupai
+    command:
+      - postgres
+      - -c
+      - shared_buffers=96MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=30
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    mem_limit: 450m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gulupai -d gulupai"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment:
+      APP_ENV: demo
+      SPRING_PROFILES_ACTIVE: demo
+      DB_URL: jdbc:postgresql://db:5432/gulupai
+      DB_USERNAME: gulupai
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      DB_POOL_SIZE: "6"
+      IDEMPOTENCY_ENCRYPTION_KEY: ${IDEMPOTENCY_ENCRYPTION_KEY:?set IDEMPOTENCY_ENCRYPTION_KEY}
+      APP_FILES_ROOT: /data/files
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx448m"
+    volumes:
+      - files:/data/files
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 800m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  proxy:
+    image: caddy:2.10.2
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    mem_limit: 96m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+volumes:
+  pgdata:
+  files:
+  caddy-data:
+  caddy-config:

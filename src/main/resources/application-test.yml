@@ -1,0 +1,31 @@
+# 测试：使用独立 PostgreSQL 实例/库与独立 schema，禁止用 H2 证明锁与部分唯一索引。
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/postgres?currentSchema=gulupai_test}
+    username: ${TEST_DB_USERNAME:postgres}
+    password: ${TEST_DB_PASSWORD:}
+  flyway:
+    schemas: gulupai_test
+    default-schema: gulupai_test
+    create-schemas: true
+    clean-disabled: true
+
+app:
+  environment: ${APP_ENV:test}
+  files:
+    root: target/test-files
+    public-base-url: https://files.test
+    minimum-free-bytes: 0
+    reconcile-initial-delay-ms: 86400000
+    reconcile-delay-ms: 86400000
+  auth:
+    access-ttl: 30m
+    refresh-ttl: 7d
+    bcrypt-cost: 4
+  idempotency:
+    encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:dGVzdC1vbmx5LWtleS0wMTIzNDU2Nzg5YWJjZGVmMTI=}
+    key-id: ${IDEMPOTENCY_KEY_ID:test-v1}
+
+logging:
+  level:
+    org.flywaydb: INFO

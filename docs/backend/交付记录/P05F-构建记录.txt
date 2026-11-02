@@ -1,0 +1,35 @@
+P05F 构建记录
+==============
+
+构建日期：2026-10-31T19:19:00+08:00
+项目版本：0.1.0-P05F
+构建结果：BUILD SUCCESS（./mvnw test 与 ./mvnw verify）
+
+工具链
+------
+Java:    Eclipse Temurin 21.0.13
+Maven:   Apache Maven 3.9.11
+OS:      Linux 6.18.54.1-microsoft-standard-WSL2 x86_64
+
+数据库
+------
+PostgreSQL 17.11（开发机本地实例，端口 55432；test schema=gulupai_test）
+Flyway 迁移：V001～V008，本阶段新增 V008__stored_file.sql
+
+验证摘要
+--------
+./mvnw test:
+  Tests run: 32, Failures: 0, Errors: 0, Skipped: 0
+
+./mvnw verify:
+  Tests run: 60, Failures: 0, Errors: 0, Skipped: 0
+  FileP05FIT           4
+  TaskP05IT            6
+  RoleP04IT            6
+  TeamP03IT            7
+  TeachingP02BIT       5
+  CourseP02IT         14
+  AuthP01IT           16
+  FlywayMigrationIT    2
+
+人员事项和求助工单关联未放行。未执行 Android 联调，未部署云服务器。

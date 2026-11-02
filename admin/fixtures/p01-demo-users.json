@@ -1,0 +1,93 @@
+{
+  "schools": [
+    {
+      "id": "school_demo_01",
+      "name": "示例大学",
+      "timezone": "Asia/Shanghai"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_demo_student_01",
+      "schoolId": "school_demo_01",
+      "loginId": "student_demo_01",
+      "studentNo": "2026001",
+      "displayName": "示例学生甲",
+      "password": "demo-password-01",
+      "identityStatus": "VERIFIED",
+      "disabled": false,
+      "roles": [
+        "STUDENT"
+      ],
+      "skills": [
+        "Java",
+        "Android"
+      ]
+    },
+    {
+      "id": "user_demo_student_02",
+      "schoolId": "school_demo_01",
+      "loginId": "student_demo_02",
+      "studentNo": "2026002",
+      "displayName": "示例学生乙",
+      "password": "demo-password-02",
+      "identityStatus": "VERIFIED",
+      "disabled": false,
+      "roles": [
+        "STUDENT"
+      ],
+      "skills": [
+        "Python"
+      ]
+    },
+    {
+      "id": "user_demo_teacher_01",
+      "schoolId": "school_demo_01",
+      "loginId": "teacher_demo_01",
+      "studentNo": null,
+      "displayName": "示例教师",
+      "password": "demo-password-03",
+      "identityStatus": "VERIFIED",
+      "disabled": false,
+      "roles": [
+        "TEACHER"
+      ],
+      "skills": [
+        "课程设计"
+      ]
+    },
+    {
+      "id": "user_demo_assistant_01",
+      "schoolId": "school_demo_01",
+      "loginId": "assistant_demo_01",
+      "studentNo": "2026003",
+      "displayName": "示例班级助理",
+      "password": "demo-password-04",
+      "identityStatus": "VERIFIED",
+      "disabled": false,
+      "roles": [
+        "STUDENT",
+        "CLASS_ADMIN"
+      ],
+      "skills": [
+        "沟通"
+      ]
+    },
+    {
+      "id": "user_demo_teacher_02",
+      "schoolId": "school_demo_01",
+      "loginId": "teacher_demo_02",
+      "studentNo": null,
+      "displayName": "示例教师乙",
+      "password": "demo-password-05",
+      "identityStatus": "VERIFIED",
+      "disabled": false,
+      "roles": [
+        "TEACHER"
+      ],
+      "skills": [
+        "课程设计"
+      ]
+    }
+  ]
+}

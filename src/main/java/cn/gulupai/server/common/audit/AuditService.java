@@ -1,0 +1,53 @@
+package cn.gulupai.server.common.audit;
+
+import cn.gulupai.server.common.api.RequestIds;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
+/**
+ * 审计事件只记录动作、资源与版本，不记录密码、令牌、聊天全文或请求正文。
+ */
+@Service
+public class AuditService {
+
+    private final JdbcTemplate jdbcTemplate;
+    private final Clock clock;
+
+    public AuditService(JdbcTemplate jdbcTemplate, Clock clock) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.clock = clock;
+    }
+
+    @Transactional
+    public void record(String actorId, String action, String resourceType, String resourceId,
+                       Integer beforeRevision, Integer afterRevision, String reason) {
+        if (action == null || action.isBlank() || action.length() > 80) {
+            throw new IllegalArgumentException("audit action 无效");
+        }
+        if (reason != null && reason.length() > 500) {
+            throw new IllegalArgumentException("audit reason 超过500字符");
+        }
+        jdbcTemplate.update("""
+                INSERT INTO audit_event
+                    (id, actor_id, action, resource_type, resource_id, before_revision,
+                     after_revision, reason, request_id, at, revision)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                """,
+                UUID.randomUUID().toString(),
+                actorId,
+                action,
+                resourceType,
+                resourceId,
+                beforeRevision,
+                afterRevision,
+                reason,
+                RequestIds.current(),
+                OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
+    }
+}

@@ -1,0 +1,76 @@
+P02B 构建记录
+=============
+
+构建日期：2026-10-31T15:59:51+08:00
+项目版本：0.1.0-P02B
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+工具链
+------
+Java:    Eclipse Temurin 21.0.13+9 LTS
+Maven:   Apache Maven 3.9.11
+Wrapper: maven-wrapper 3.3.4（apache-maven-3.9.11）
+OS:      Linux 6.18.54.1-microsoft-standard-WSL2 x86_64
+编码:    UTF-8
+
+运行时依赖（未新增第三方库）
+----------------------------
+spring-boot                 3.5.16
+spring-core                 6.2.19
+spring-webmvc               6.2.19
+spring-security-core/config/web 6.5.11
+spring-jdbc / spring-tx     6.2.19
+tomcat-embed-core           10.1.55
+jackson-databind/core       2.21.4 / 2.21
+flyway-core                 11.7.2
+flyway-database-postgresql  11.7.2
+postgresql JDBC             42.7.11
+HikariCP                    6.3.3
+
+数据库
+------
+PostgreSQL 17.11（开发机本地实例，端口 55432；test schema=gulupai_test）
+Flyway 迁移：V001 baseline、V002 identity security、V003 course and assignment、
+             V004 teaching and membership
+
+验证摘要
+--------
+./mvnw test:
+  ApiContractTest          19
+  DecimalStringsTest        3
+  MutableClockTest          2
+  CanonicalJsonTest         2
+  IdempotencyCipherTest     2
+  PasswordEncoderTest       1
+  SlotsCanonicalizerTest    3
+  合计                     32 通过，0 失败
+
+./mvnw verify:
+  上述 32 个
+  FlywayMigrationIT         2
+  AuthP01IT                16
+  CourseP02IT              14
+  TeachingP02BIT            5
+  合计                     69 通过，0 失败
+  BUILD SUCCESS
+
+关键验证
+--------
+- 空 schema 迁移 V001→V004 成功；已有真实广场回填 teacher_assignment
+- 教师工作台/助理工作台/授权列表
+- 班级授权白名单、默认学期末、同键重放、异正文409、非成员拒绝
+- 课程码签发/读取/撤销/解析；旧码失效；5分钟确认 token；过期/无效码
+- 可信名单确认入课；入课申请/审核/自审403/无审核人503/游标分页
+- 教师认领 PENDING + CLI 审核；认领后建立起教师权属
+- 退出负责：有有效授权409，撤销后成功
+- 课程转交：PENDING/ACCEPT/DECLINE、旧码撤销、来源变更409、非教师接任422
+- 教学进展权限与 P03 前真实空集
+
+说明
+----
+当前沙箱的 ~/.m2 不可写，验证时使用了：
+  -Dmaven.repo.local=$PWD/.tools/m2
+  MAVEN_USER_HOME=$PWD/.tools/maven-home
+  TEST_DB_URL=...localhost:55432/postgres?currentSchema=gulupai_test
+正常开发机无需这些覆盖，直接执行 ./mvnw test / ./mvnw verify。
+.tools/ 为本地工具链，已被 .gitignore 排除。

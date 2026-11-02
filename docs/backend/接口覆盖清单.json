@@ -1,0 +1,1692 @@
+{
+  "sourceSha256": "8eb3173c599fc5c970fb4a43a78aa9d1d61ecd027ee4b068e38c08ee7dac1ae4",
+  "interfaceCount": 281,
+  "items": [
+    {
+      "id": "AUTH-01",
+      "route": "DELETE /auth/sessions/current",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-02",
+      "route": "GET /me/profile",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-03",
+      "route": "GET /me/profile-visibility",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-04",
+      "route": "POST /auth/sessions",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-05",
+      "route": "POST /auth/sessions/refresh",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-06",
+      "route": "PUT /me/profile",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-07",
+      "route": "PUT /me/profile-visibility",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-08",
+      "route": "GET /me",
+      "status": "后端验证通过",
+      "evidence": "AuthP01IT"
+    },
+    {
+      "id": "COURSE-01",
+      "route": "GET /assignments/{assignmentId}",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-02",
+      "route": "GET /course-names",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-03",
+      "route": "GET /schools/{schoolId}/periods",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-04",
+      "route": "GET /schools/{schoolId}/terms",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-05",
+      "route": "GET /squares",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-06",
+      "route": "GET /squares/{squareId}",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-07",
+      "route": "GET /squares/{squareId}/assignments",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-08",
+      "route": "POST /assignments/{assignmentId}/confirmations",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-09",
+      "route": "POST /squares",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-10",
+      "route": "POST /squares/matches",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-11",
+      "route": "POST /squares/{squareId}/assignments",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-12",
+      "route": "POST /square-number-resolutions",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
+    },
+    {
+      "id": "COURSE-13",
+      "route": "POST /squares/{squareId}/join-codes",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-14",
+      "route": "GET /squares/{squareId}/join-codes/current",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-15",
+      "route": "POST /square-join-codes/{codeId}/revocations",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-16",
+      "route": "POST /square-code-resolutions",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-17",
+      "route": "POST /squares/{squareId}/membership-confirmations",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-18",
+      "route": "POST /squares/{squareId}/join-requests",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-19",
+      "route": "GET /me/square-membership-requests",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-20",
+      "route": "GET /squares/{squareId}/join-requests",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-21",
+      "route": "GET /square-membership-requests/{requestId}",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-22",
+      "route": "POST /square-membership-requests/{requestId}/decisions",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEAM-01",
+      "route": "GET /assignments/{assignmentId}/recruitments",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-02",
+      "route": "GET /invitations/{invitationId}",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-03",
+      "route": "GET /me/applications",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-04",
+      "route": "GET /me/invitations",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-05",
+      "route": "GET /me/projects",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-06",
+      "route": "GET /me/work-source-projects",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT、TeamFixP03IT（R03/S02/S03）"
+    },
+    {
+      "id": "TEAM-07",
+      "route": "GET /projects/{projectId}",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-08",
+      "route": "GET /projects/{projectId}/applications",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-09",
+      "route": "GET /projects/{projectId}/invitations",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-10",
+      "route": "GET /projects/{projectId}/invite-candidates",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT、TeamFixP03IT（R04）"
+    },
+    {
+      "id": "TEAM-11",
+      "route": "GET /projects/{projectId}/join-code",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-12",
+      "route": "GET /projects/{projectId}/members",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-13",
+      "route": "GET /projects/{projectId}/recruitment",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-14",
+      "route": "PATCH /projects/{projectId}",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-15",
+      "route": "POST /applications/{applicationId}/decisions",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-16",
+      "route": "POST /applications/{applicationId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-17",
+      "route": "POST /invitations/{invitationId}/responses",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-18",
+      "route": "POST /invitations/{invitationId}/revocations",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-19",
+      "route": "POST /project-code-resolutions",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-20",
+      "route": "POST /projects",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-21",
+      "route": "POST /projects/{projectId}/applications",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-22",
+      "route": "POST /projects/{projectId}/code-actions",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-23",
+      "route": "POST /projects/{projectId}/invitations",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-24",
+      "route": "PUT /projects/{projectId}/recruitment",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT"
+    },
+    {
+      "id": "TEAM-25",
+      "route": "GET /me/dashboard",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT、TeamFixP03IT（R08）"
+    },
+    {
+      "id": "TEAM-26",
+      "route": "GET /me/todos",
+      "status": "后端验证通过",
+      "evidence": "TeamP03IT、TeamFixP03IT（R08）"
+    },
+    {
+      "id": "ROLE-01",
+      "route": "GET /me/role-plans",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-02",
+      "route": "GET /me/role-proposals",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-03",
+      "route": "GET /me/role-swaps",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-04",
+      "route": "GET /projects/{projectId}/role-plans",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-05",
+      "route": "GET /projects/{projectId}/role-proposals",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-06",
+      "route": "GET /projects/{projectId}/role-slots",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-07",
+      "route": "GET /projects/{projectId}/role-swaps",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-08",
+      "route": "GET /role-plans/{planId}",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-09",
+      "route": "GET /role-proposals/{proposalId}",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-10",
+      "route": "GET /role-swaps/{swapId}",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-11",
+      "route": "POST /projects/{projectId}/role-plans",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-12",
+      "route": "POST /projects/{projectId}/role-proposals",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-13",
+      "route": "POST /projects/{projectId}/role-swaps",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-14",
+      "route": "POST /role-plans/{planId}/responses",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-15",
+      "route": "POST /role-plans/{planId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-16",
+      "route": "POST /role-proposals/{proposalId}/responses",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-17",
+      "route": "POST /role-proposals/{proposalId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-18",
+      "route": "POST /role-swaps/{swapId}/responses",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-19",
+      "route": "POST /role-swaps/{swapId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-20",
+      "route": "PUT /projects/{projectId}/me/role",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "ROLE-21",
+      "route": "PUT /projects/{projectId}/role-slots",
+      "status": "后端验证通过",
+      "evidence": "RoleP04IT"
+    },
+    {
+      "id": "TASK-01",
+      "route": "GET /projects/{projectId}/board",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-02",
+      "route": "GET /projects/{projectId}/tasks",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-03",
+      "route": "GET /tasks/{taskId}",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-04",
+      "route": "PATCH /tasks/{taskId}",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-05",
+      "route": "POST /projects/{projectId}/tasks",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-06",
+      "route": "POST /tasks/{taskId}/claims",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-07",
+      "route": "POST /tasks/{taskId}/starts",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-08",
+      "route": "PUT /projects/{projectId}/me/color",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-09",
+      "route": "PUT /projects/{projectId}/stages",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "TASK-10",
+      "route": "PUT /tasks/{taskId}/dependencies",
+      "status": "后端验证通过",
+      "evidence": "TaskP05IT"
+    },
+    {
+      "id": "DELIVERY-01",
+      "route": "GET /agreements/{agreementId}",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-02",
+      "route": "GET /change-proposals/{proposalId}",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-03",
+      "route": "GET /tasks/{taskId}/change-proposals",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-04",
+      "route": "GET /tasks/{taskId}/me/draft",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-05",
+      "route": "GET /tasks/{taskId}/submissions",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-06",
+      "route": "POST /agreements/{agreementId}/responses",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-07",
+      "route": "POST /change-proposals/{proposalId}/opinion-confirmations",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-08",
+      "route": "POST /change-proposals/{proposalId}/opinion-responses",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-09",
+      "route": "POST /change-proposals/{proposalId}/responses",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-10",
+      "route": "POST /change-proposals/{proposalId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-11",
+      "route": "POST /reviewer-invitations/{invitationId}/responses",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-12",
+      "route": "POST /submissions/{submissionId}/acceptances",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-13",
+      "route": "POST /submissions/{submissionId}/self-checks",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-14",
+      "route": "POST /submissions/{submissionId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-15",
+      "route": "POST /tasks/{taskId}/agreements",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-16",
+      "route": "POST /tasks/{taskId}/change-proposals",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-17",
+      "route": "POST /tasks/{taskId}/handover-agreement-renewals",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-18",
+      "route": "POST /tasks/{taskId}/reviewer-invitations",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-19",
+      "route": "POST /tasks/{taskId}/submissions",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-20",
+      "route": "POST /tasks/{taskId}/units/{unitId}/me/contribution-confirmations",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "DELIVERY-21",
+      "route": "PUT /tasks/{taskId}/me/draft",
+      "status": "后端验证通过",
+      "evidence": "DeliveryP06IT"
+    },
+    {
+      "id": "GOV-01",
+      "route": "GET /material-requests/{requestId}",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）、GovU02MaterialTimeIT（U02）、MaterialTimeMigrationIT（V022）"
+    },
+    {
+      "id": "GOV-02",
+      "route": "GET /me/material-requests",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）、GovU02MaterialTimeIT（U02）、MaterialTimeMigrationIT（V022）"
+    },
+    {
+      "id": "GOV-03",
+      "route": "GET /me/membership-history",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-04",
+      "route": "GET /me/personnel-handoffs",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-05",
+      "route": "GET /member-changes/{changeId}",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-06",
+      "route": "GET /personnel-cases/{caseId}",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-07",
+      "route": "GET /personnel-cases/{caseId}/handoff-candidates",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-08",
+      "route": "GET /personnel-cases/{caseId}/material-recipients",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-09",
+      "route": "GET /personnel-handoffs/{handoffId}",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-10",
+      "route": "GET /projects/{projectId}/incoming-transfers",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-11",
+      "route": "GET /projects/{projectId}/member-changes",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-12",
+      "route": "GET /projects/{projectId}/removal-votes",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-13",
+      "route": "GET /projects/{projectId}/transfer-targets",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-14",
+      "route": "GET /removal-votes/{voteId}",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-15",
+      "route": "GET /squares/{squareId}/member-changes",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-16",
+      "route": "GET /squares/{squareId}/personnel-cases",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-17",
+      "route": "POST /material-requests/{requestId}/responses",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）、GovU01MaterialStateIT（U01）、GovU02MaterialTimeIT（U02）"
+    },
+    {
+      "id": "GOV-18",
+      "route": "POST /material-requests/{requestId}/reviews",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）、GovU01MaterialStateIT（U01）、GovU02MaterialTimeIT（U02）"
+    },
+    {
+      "id": "GOV-19",
+      "route": "POST /material-requests/{requestId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）、GovU01MaterialStateIT（U01）、GovU02MaterialTimeIT（U02）"
+    },
+    {
+      "id": "GOV-20",
+      "route": "POST /member-changes/{changeId}/cancellations",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-21",
+      "route": "POST /member-changes/{changeId}/executions",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-22",
+      "route": "POST /member-changes/{changeId}/handover-responses",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-23",
+      "route": "POST /member-changes/{changeId}/personnel-decisions",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-24",
+      "route": "POST /member-changes/{changeId}/target-cancellations",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-25",
+      "route": "POST /member-changes/{changeId}/target-invitations",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-26",
+      "route": "POST /member-changes/{changeId}/target-responses",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-27",
+      "route": "POST /personnel-cases/{caseId}/acceptances",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-28",
+      "route": "POST /personnel-cases/{caseId}/closures",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-29",
+      "route": "POST /personnel-cases/{caseId}/handoffs",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-30",
+      "route": "POST /personnel-cases/{caseId}/material-requests",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）、GovU01MaterialStateIT（U01）、GovU02MaterialTimeIT（U02）"
+    },
+    {
+      "id": "GOV-31",
+      "route": "POST /personnel-cases/{caseId}/recoveries",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-32",
+      "route": "POST /personnel-cases/{caseId}/updates",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-33",
+      "route": "POST /personnel-handoffs/{handoffId}/cancellations",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-34",
+      "route": "POST /personnel-handoffs/{handoffId}/responses",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、TeamFixP03IT（S04/S06）、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-35",
+      "route": "POST /projects/{projectId}/member-changes",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-36",
+      "route": "POST /projects/{projectId}/removal-votes",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-37",
+      "route": "POST /removal-votes/{voteId}/cancellations",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-38",
+      "route": "POST /removal-votes/{voteId}/personnel-decisions",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT、GovT01T06IT（T01～T06）"
+    },
+    {
+      "id": "GOV-39",
+      "route": "POST /removal-votes/{voteId}/statements",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-40",
+      "route": "PUT /member-changes/{changeId}/handover-plan",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "GOV-41",
+      "route": "PUT /removal-votes/{voteId}/me/ballot",
+      "status": "后端验证通过",
+      "evidence": "GovP07IT"
+    },
+    {
+      "id": "MERGE-01",
+      "route": "GET /square-merge-proposals/{proposalId}",
+      "status": "后端验证通过",
+      "evidence": "MergeP08IT"
+    },
+    {
+      "id": "MERGE-02",
+      "route": "GET /squares/{squareId}/merge-proposals",
+      "status": "后端验证通过",
+      "evidence": "MergeP08IT"
+    },
+    {
+      "id": "MERGE-03",
+      "route": "POST /square-merge-proposals",
+      "status": "后端验证通过",
+      "evidence": "MergeP08IT"
+    },
+    {
+      "id": "MERGE-04",
+      "route": "POST /square-merge-proposals/{proposalId}/cancellations",
+      "status": "后端验证通过",
+      "evidence": "MergeP08IT"
+    },
+    {
+      "id": "MERGE-05",
+      "route": "POST /square-merge-proposals/{proposalId}/executions",
+      "status": "后端验证通过",
+      "evidence": "MergeP08IT"
+    },
+    {
+      "id": "MERGE-06",
+      "route": "POST /square-merge-proposals/{proposalId}/fact-checks",
+      "status": "后端验证通过",
+      "evidence": "MergeP08IT"
+    },
+    {
+      "id": "MERGE-07",
+      "route": "PUT /square-merge-proposals/{proposalId}/me/ballots",
+      "status": "后端验证通过",
+      "evidence": "MergeP08IT"
+    },
+    {
+      "id": "TEACH-01",
+      "route": "GET /me/admin-workspaces",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-02",
+      "route": "GET /me/teaching-workspaces",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-03",
+      "route": "GET /squares/{squareId}/admin-grants",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-04",
+      "route": "GET /squares/{squareId}/teaching-progress",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-05",
+      "route": "POST /admin-grants/{grantId}/revocations",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-06",
+      "route": "POST /squares/{squareId}/admin-grants",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-07",
+      "route": "POST /squares/{squareId}/teacher-claims",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-08",
+      "route": "POST /squares/{squareId}/teacher-relinquishments",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-09",
+      "route": "POST /squares/{squareId}/teacher-transfers",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "TEACH-10",
+      "route": "POST /teacher-transfers/{transferId}/responses",
+      "status": "后端验证通过",
+      "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "GRADE-01",
+      "route": "GET /assignments/{assignmentId}/grade-appeals",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-02",
+      "route": "GET /assignments/{assignmentId}/gradebook",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-03",
+      "route": "GET /assignments/{assignmentId}/grading-rule",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-04",
+      "route": "GET /assignments/{assignmentId}/students/{studentId}/grade-history",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-05",
+      "route": "GET /assignments/{assignmentId}/students/{studentId}/ledger",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeFixP09IT（R02/S05）"
+    },
+    {
+      "id": "GRADE-06",
+      "route": "GET /assignments/{assignmentId}/students/{studentId}/teacher-summary",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-07",
+      "route": "GET /grade-appeals/{appealId}",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-08",
+      "route": "GET /grade-snapshots/{snapshotId}",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-09",
+      "route": "GET /me/grade-appeals",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-10",
+      "route": "GET /me/grades",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-11",
+      "route": "GET /me/teacher-summaries",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-12",
+      "route": "GET /teacher-summaries/{summaryId}",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-13",
+      "route": "POST /assignments/{assignmentId}/grade-publication-previews",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeFixP09IT（R02/S05）"
+    },
+    {
+      "id": "GRADE-14",
+      "route": "POST /assignments/{assignmentId}/grade-publications",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeFixP09IT（R02/S05）"
+    },
+    {
+      "id": "GRADE-15",
+      "route": "POST /assignments/{assignmentId}/grading-rule-previews",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-16",
+      "route": "POST /assignments/{assignmentId}/grading-rules",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-17",
+      "route": "POST /assignments/{assignmentId}/students/{studentId}/ledger-corrections",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeFixP09IT（R02/S05）"
+    },
+    {
+      "id": "GRADE-18",
+      "route": "POST /assignments/{assignmentId}/students/{studentId}/settlements",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeFixP09IT（R02/S05）"
+    },
+    {
+      "id": "GRADE-19",
+      "route": "POST /grade-appeals/{appealId}/responses",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-20",
+      "route": "POST /grade-snapshots/{snapshotId}/appeals",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-21",
+      "route": "POST /teacher-summaries/{summaryId}/consents",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-22",
+      "route": "POST /teacher-summaries/{summaryId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-23",
+      "route": "PUT /assignments/{assignmentId}/students/{studentId}/grade-draft",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "GRADE-24",
+      "route": "PUT /assignments/{assignmentId}/students/{studentId}/teacher-summary",
+      "status": "后端验证通过",
+      "evidence": "GradeP09IT、GradeMathTest"
+    },
+    {
+      "id": "REPORT-01",
+      "route": "GET /projects/{projectId}/delivery-release-draft",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-02",
+      "route": "GET /projects/{projectId}/delivery-releases",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-03",
+      "route": "GET /projects/{projectId}/report",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-04",
+      "route": "GET /projects/{projectId}/report-snapshots",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-05",
+      "route": "GET /report-snapshots/{snapshotId}",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-06",
+      "route": "POST /projects/{projectId}/delivery-release-previews",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-07",
+      "route": "POST /projects/{projectId}/delivery-releases",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-08",
+      "route": "POST /projects/{projectId}/lifecycle-actions",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-09",
+      "route": "POST /projects/{projectId}/report-snapshots",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-10",
+      "route": "PUT /projects/{projectId}/delivery-release-draft",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-11",
+      "route": "PUT /projects/{projectId}/me/reflection",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "REPORT-12",
+      "route": "PUT /projects/{projectId}/overall-reflection",
+      "status": "后端验证通过",
+      "evidence": "ReportP10IT"
+    },
+    {
+      "id": "PROFILE-01",
+      "route": "GET /me/cooperations",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-02",
+      "route": "GET /me/works",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-03",
+      "route": "GET /peer-reviews/{reviewId}",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-04",
+      "route": "GET /projects/{projectId}/peer-review-context",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-05",
+      "route": "GET /users/{userId}/profile",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-06",
+      "route": "GET /works/{workId}",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-07",
+      "route": "PATCH /me/works/{workId}",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-08",
+      "route": "POST /me/works",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-09",
+      "route": "POST /me/works/{workId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-10",
+      "route": "POST /peer-reviews/{reviewId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-11",
+      "route": "POST /projects/{projectId}/peer-reviews",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "PROFILE-12",
+      "route": "PUT /peer-reviews/{reviewId}",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "AI-01",
+      "route": "GET /projects/{projectId}/ai-references",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "AI-02",
+      "route": "POST /projects/{projectId}/client-ai-references",
+      "status": "后端验证通过",
+      "evidence": "ProfileP11IT"
+    },
+    {
+      "id": "DICE-01",
+      "route": "POST /tasks/{taskId}/dice-sessions",
+      "status": "后端验证通过",
+      "evidence": "DiceP12IT"
+    },
+    {
+      "id": "DICE-02",
+      "route": "GET /dice-sessions/{sessionId}",
+      "status": "后端验证通过",
+      "evidence": "DiceP12IT"
+    },
+    {
+      "id": "DICE-03",
+      "route": "POST /dice-sessions/{sessionId}/participations",
+      "status": "后端验证通过",
+      "evidence": "DiceP12IT"
+    },
+    {
+      "id": "DICE-04",
+      "route": "POST /dice-sessions/{sessionId}/rolls",
+      "status": "后端验证通过",
+      "evidence": "DiceP12IT"
+    },
+    {
+      "id": "DICE-05",
+      "route": "POST /dice-sessions/{sessionId}/terminations",
+      "status": "后端验证通过",
+      "evidence": "DiceP12IT"
+    },
+    {
+      "id": "DICE-06",
+      "route": "POST /dice-sessions/{sessionId}/outcome-decisions",
+      "status": "后端验证通过",
+      "evidence": "DiceP12IT"
+    },
+    {
+      "id": "BOARD-01",
+      "route": "GET /projects/{projectId}/board-topics",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-02",
+      "route": "POST /projects/{projectId}/board-topics",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-03",
+      "route": "GET /board-topics/{topicId}",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-04",
+      "route": "GET /board-topics/{topicId}/replies",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-05",
+      "route": "POST /board-topics/{topicId}/replies",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-06",
+      "route": "POST /board-topics/{contentId}/revisions",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-07",
+      "route": "POST /board-topics/{contentId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-08",
+      "route": "GET /board-topics/{contentId}/revisions",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-09",
+      "route": "POST /board-replies/{contentId}/revisions",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-10",
+      "route": "POST /board-replies/{contentId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-11",
+      "route": "GET /board-replies/{contentId}/revisions",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-12",
+      "route": "POST /board-topics/{topicId}/status-actions",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-13",
+      "route": "PUT /board-topics/{topicId}/pin",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "BOARD-14",
+      "route": "PUT /board-topics/{topicId}/me/following",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT"
+    },
+    {
+      "id": "CHAT-01",
+      "route": "GET /projects/{projectId}/chat-messages",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT、ChatFixP13IT（R01/R05/S01）"
+    },
+    {
+      "id": "CHAT-02",
+      "route": "POST /projects/{projectId}/chat-messages",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT、ChatFixP13IT（R01/R07）"
+    },
+    {
+      "id": "CHAT-03",
+      "route": "GET /projects/{projectId}/chat-message-resolutions",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT、ChatFixP13IT（R01/R07）"
+    },
+    {
+      "id": "CHAT-04",
+      "route": "POST /chat-messages/{messageId}/withdrawals",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT、ChatFixP13IT（R01）"
+    },
+    {
+      "id": "CHAT-05",
+      "route": "GET /projects/{projectId}/me/read-cursor",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT、ChatFixP13IT（R06）"
+    },
+    {
+      "id": "CHAT-06",
+      "route": "PUT /projects/{projectId}/me/read-cursor",
+      "status": "后端验证通过",
+      "evidence": "CommunityP13IT、ChatFixP13IT（R06）"
+    },
+    {
+      "id": "NOTICE-01",
+      "route": "GET /squares/{squareId}/announcements",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-02",
+      "route": "POST /squares/{squareId}/announcements",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-03",
+      "route": "POST /squares/{squareId}/announcement-previews",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-04",
+      "route": "GET /announcements/{announcementId}",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-05",
+      "route": "POST /announcements/{announcementId}/revisions",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-06",
+      "route": "POST /announcements/{announcementId}/revocations",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-07",
+      "route": "POST /announcements/{announcementId}/reads",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-08",
+      "route": "POST /announcements/{announcementId}/acknowledgements",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-09",
+      "route": "GET /announcements/{announcementId}/receipts",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-10",
+      "route": "POST /announcements/{announcementId}/reminder-previews",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-11",
+      "route": "POST /announcements/{announcementId}/reminders",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-12",
+      "route": "GET /me/notifications",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-13",
+      "route": "POST /me/notifications/read-actions",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-14",
+      "route": "GET /me/notification-preferences",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "NOTICE-15",
+      "route": "PUT /me/notification-preferences",
+      "status": "后端验证通过",
+      "evidence": "NoticeP14IT"
+    },
+    {
+      "id": "HELP-01",
+      "route": "GET /help/content-pack",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-02",
+      "route": "GET /help/articles",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-03",
+      "route": "GET /help/articles/{articleId}",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-04",
+      "route": "PUT /help/articles/{articleId}/me/feedback",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-05",
+      "route": "PUT /help/articles/{articleId}",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-06",
+      "route": "GET /support/routes",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-07",
+      "route": "POST /me/support-tickets",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-08",
+      "route": "GET /me/support-tickets",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-09",
+      "route": "GET /support-tickets/{ticketId}",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-10",
+      "route": "POST /support-tickets/{ticketId}/replies",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-11",
+      "route": "GET /support-workspace/tickets",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-12",
+      "route": "POST /support-tickets/{ticketId}/acceptances",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-13",
+      "route": "POST /support-tickets/{ticketId}/status-actions",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-14",
+      "route": "POST /support-tickets/{ticketId}/resolution-decisions",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-15",
+      "route": "POST /support-tickets/{ticketId}/transfers",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "HELP-16",
+      "route": "POST /support-tickets/{ticketId}/closures",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "REPORTING-01",
+      "route": "POST /me/content-reports",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "REPORTING-02",
+      "route": "GET /me/content-reports",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "REPORTING-03",
+      "route": "GET /content-reports/{reportId}",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "REPORTING-04",
+      "route": "POST /content-reports/{reportId}/handling-actions",
+      "status": "后端验证通过",
+      "evidence": "SupportP15IT"
+    },
+    {
+      "id": "FILE-01",
+      "route": "POST /files/upload-intents",
+      "status": "后端验证通过",
+      "evidence": "FileP05FIT"
+    },
+    {
+      "id": "FILE-02",
+      "route": "POST /files/{fileId}/completions",
+      "status": "后端验证通过",
+      "evidence": "FileP05FIT"
+    },
+    {
+      "id": "FILE-03",
+      "route": "GET /files/{fileId}",
+      "status": "后端验证通过",
+      "evidence": "FileP05FIT"
+    },
+    {
+      "id": "FILE-04",
+      "route": "POST /files/{fileId}/download-authorizations",
+      "status": "后端验证通过",
+      "evidence": "FileP05FIT"
+    }
+  ]
+}

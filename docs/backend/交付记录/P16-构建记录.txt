@@ -1,0 +1,45 @@
+P16 构建记录
+=============
+
+日期：2026-11-01T20:40:00+08:00
+项目版本：0.1.0-P16
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+验证摘要
+--------
+单元/MVC：39 通过
+真实 PostgreSQL 集成：113 通过
+总计：152 通过，0 失败
+
+集成测试
+--------
+RouteCoverageIT 1
+FlywayMigrationIT 2
+EmptyUpgradeIT 1
+DemoSeedIT 1
+SupportAdminIT 2
+SupportP15IT 2
+NoticeP14IT 3
+CommunityP13IT 3
+DiceP12IT 4
+ProfileP11IT 5
+ReportP10IT 5
+GradeP09IT 3
+MergeP08IT 3
+GovP07IT 4
+DeliveryP06IT 6
+TaskP05IT 6
+FileP05FIT 5
+RoleP04IT 6
+TeamP03IT 8
+TeachingP02BIT 5
+CourseP02IT 14
+AuthP01IT 17
+
+P16 新增
+--------
+- 281 路由精确存在性核验
+- 空 schema V001→V018、复制恢复、两次启动、文件对账、cleanup dry-run
+- help-import / operator-grant / cleanup CLI
+- demo-seed full：21 用户、2 真实班、4 广场、2 项目、A～J 场景
+- G 场景正式认领→验收邀请→提交→验收→CLOSING→复盘草稿

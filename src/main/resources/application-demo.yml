@@ -1,0 +1,16 @@
+# 演示：使用与本地/测试隔离的数据库和文件目录；固定时钟仅用于演示时间推进。
+server:
+  tomcat:
+    threads:
+      max: 24
+
+app:
+  environment: ${APP_ENV:demo}
+  idempotency:
+    # 演示环境默认值；正式环境禁止使用。
+    encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:bG9jYWwtZGV2LW9ubHkta2V5LTAxMjM0NTY3ODlhYmM=}
+    key-id: ${IDEMPOTENCY_KEY_ID:demo-dev-v1}
+
+logging:
+  level:
+    cn.gulupai.server: INFO

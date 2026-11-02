@@ -1,0 +1,115 @@
+{
+  "terms": [
+    {
+      "id": "term_demo_2026a",
+      "schoolId": "school_demo_01",
+      "name": "2026秋季",
+      "startDate": "2026-09-01",
+      "endDate": "2027-01-31",
+      "ordinal": 1
+    }
+  ],
+  "periods": [
+    {
+      "id": "period_demo_1",
+      "schoolId": "school_demo_01",
+      "termId": "term_demo_2026a",
+      "label": "第1—2节",
+      "startTime": "08:00:00",
+      "endTime": "09:40:00",
+      "ordinal": 1
+    },
+    {
+      "id": "period_demo_2",
+      "schoolId": "school_demo_01",
+      "termId": "term_demo_2026a",
+      "label": "第3—4节",
+      "startTime": "10:00:00",
+      "endTime": "11:40:00",
+      "ordinal": 2
+    },
+    {
+      "id": "period_demo_3",
+      "schoolId": "school_demo_01",
+      "termId": "term_demo_2026a",
+      "label": "第5—6节",
+      "startTime": "14:00:00",
+      "endTime": "15:40:00",
+      "ordinal": 3
+    }
+  ],
+  "courseNames": [
+    {
+      "id": "course_name_demo_mobile",
+      "schoolId": "school_demo_01",
+      "fullName": "移动应用开发实践",
+      "aliases": ["移动应用开发"]
+    },
+    {
+      "id": "course_name_demo_db",
+      "schoolId": "school_demo_01",
+      "fullName": "数据库系统原理",
+      "aliases": ["数据库"]
+    }
+  ],
+  "verifiedCourses": [
+    {
+      "id": "vc_demo_mobile_01",
+      "schoolId": "school_demo_01",
+      "termId": "term_demo_2026a",
+      "externalKey": "2026A-MOBILE-01",
+      "courseNameId": "course_name_demo_mobile",
+      "teacherUserId": "user_demo_teacher_01",
+      "slots": [
+        {
+          "weekday": 3,
+          "periodId": "period_demo_2",
+          "weekPattern": "ALL",
+          "startWeek": 1,
+          "endWeek": 16,
+          "customWeeks": []
+        }
+      ]
+    },
+    {
+      "id": "vc_demo_db_01",
+      "schoolId": "school_demo_01",
+      "termId": "term_demo_2026a",
+      "externalKey": "2026A-DB-01",
+      "courseNameId": "course_name_demo_db",
+      "teacherUserId": "user_demo_teacher_01",
+      "slots": [
+        {
+          "weekday": 5,
+          "periodId": "period_demo_3",
+          "weekPattern": "ALL",
+          "startWeek": 1,
+          "endWeek": 16,
+          "customWeeks": []
+        }
+      ]
+    }
+  ],
+  "enrollments": [
+    {
+      "verifiedCourseId": "vc_demo_mobile_01",
+      "userId": "user_demo_student_01",
+      "valid": true
+    },
+    {
+      "verifiedCourseId": "vc_demo_mobile_01",
+      "userId": "user_demo_student_02",
+      "valid": true
+    },
+    {
+      "verifiedCourseId": "vc_demo_mobile_01",
+      "userId": "user_demo_assistant_01",
+      "valid": true
+    },
+    {
+      "verifiedCourseId": "vc_demo_db_01",
+      "userId": "user_demo_student_01",
+      "valid": true
+    }
+  ]
+}

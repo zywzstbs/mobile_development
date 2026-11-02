@@ -1,0 +1,56 @@
+P00 构建记录
+=============
+
+构建日期：2026-10-31T14:36:54+08:00
+项目版本：0.1.0-P00
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+工具链
+------
+Java:    Eclipse Temurin 21.0.13+9 LTS (2026-10-20)
+Maven:   Apache Maven 3.9.11
+Wrapper: maven-wrapper 3.3.4，发行版 apache-maven-3.9.11
+OS:      Linux 6.18.54.1-microsoft-standard-WSL2 x86_64
+编码:    UTF-8
+
+运行时依赖（选自打包 jar 的 BOOT-INF/lib）
+-----------------------------------------
+spring-boot                 3.5.16
+spring-core                 6.2.19
+spring-context              6.2.19
+spring-web                  6.2.19
+spring-webmvc               6.2.19
+spring-jdbc                 6.2.19
+spring-tx                   6.2.19
+spring-security-core/config/web 6.5.11
+tomcat-embed-core           10.1.55
+jackson-databind/core/annotations 2.21.4 / 2.21
+flyway-core                 11.7.2
+flyway-database-postgresql  11.7.2
+postgresql JDBC             42.7.11
+HikariCP                    6.3.3
+
+数据库
+------
+PostgreSQL 17.11（开发机本地实例，端口 55432；本记录不代表生产数据库）
+
+测试摘要
+--------
+./mvnw test:
+  ApiContractTest        19 通过
+  DecimalStringsTest      3 通过
+  MutableClockTest        2 通过
+  合计                   24 通过，0 失败
+
+./mvnw verify:
+  上述 24 个 + FlywayMigrationIT 2 个通过
+  空 schema → Flyway 创建 gulupai_test / flyway_schema_history → V001 应用成功
+  BUILD SUCCESS
+
+说明
+----
+当前沙箱的 ~/.m2 不可写，验证时使用了：
+  -Dmaven.repo.local=$PWD/.tools/m2
+  MAVEN_USER_HOME=$PWD/.tools/maven-home
+正常开发机无需这些覆盖，直接执行 ./mvnw test / ./mvnw verify。
+.tools/ 为本地工具链，已被 .gitignore 排除，不属于交付源码。

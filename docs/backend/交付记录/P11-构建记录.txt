@@ -1,0 +1,45 @@
+P11 构建记录
+=============
+
+日期：2026-10-31T21:47:00+08:00
+项目版本：0.1.0-P11
+构建结果：BUILD SUCCESS（./mvnw verify）
+
+数据库
+------
+PostgreSQL 17.11，test schema=gulupai_test
+Flyway V001～V014（新增 V014 profile_works_and_ai）
+
+验证摘要
+--------
+./mvnw test:  38 通过
+./mvnw verify: 86 集成通过；总计 124 通过，0 失败
+  ProfileP11IT 5
+  ReportP10IT 5
+  GradeP09IT 3
+  MergeP08IT 3
+  GovP07IT 4
+  DeliveryP06IT 6
+  TaskP05IT 6
+  FileP05FIT 4
+  RoleP04IT 6
+  TeamP03IT 7
+  TeachingP02BIT 5
+  CourseP02IT 14
+  AuthP01IT 16
+  FlywayMigrationIT 2
+
+P11 关键验证
+------------
+- work/work_version 创建、版本、撤回、不可重提
+- PRIVATE/TEAM/CLASS 与来源项目授权交集
+- 互评仅项目成员、不能自评、归档后14天、原始互评仅作者
+- 三维观察唯一、重复评价 409、撤回保留历史
+- 合作记录/画像上下文/他人作品投影
+- AI 组长确认、origin 固定、clientRecordId 异正文 409、跨项目 422
+
+修复/注意
+---------
+- 新服务原与 identity.ProfileService 重名，已改为 ProfileWorksService。
+- 测试清理顺序加入 V014 五张表。
+- 当前沙箱验证使用 -Dmaven.repo.local=$PWD/.tools/m2 与本地 PostgreSQL 55432。

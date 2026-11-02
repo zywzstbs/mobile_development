@@ -1,0 +1,12 @@
+# 受控管理 CLI：不启动 Web 容器，执行 Flyway 后运行指定命令。
+spring:
+  main:
+    web-application-type: none
+
+app:
+  cli:
+    enabled: true
+  environment: cli
+  idempotency:
+    encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:bG9jYWwtZGV2LW9ubHkta2V5LTAxMjM0NTY3ODlhYmM=}
+    key-id: ${IDEMPOTENCY_KEY_ID:cli-dev-v1}
