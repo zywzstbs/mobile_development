@@ -42,6 +42,15 @@ public class GovRepository {
         return one("SELECT * FROM member_change WHERE id = ?", changeMapper, id);
     }
 
+    public List<String> changeIdsIn(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        String marks = String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
+        return jdbc.query("SELECT id FROM member_change WHERE id IN (" + marks + ")",
+                (rs, n) -> rs.getString("id"), ids.toArray());
+    }
+
     public List<ChangeRow> changesForProject(String projectId) {
         return jdbc.query("SELECT * FROM member_change WHERE project_id = ? ORDER BY created_at, id",
                 changeMapper, projectId);

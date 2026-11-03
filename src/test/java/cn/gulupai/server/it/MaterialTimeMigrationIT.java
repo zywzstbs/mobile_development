@@ -51,8 +51,8 @@ class MaterialTimeMigrationIT {
         seedLegacyMaterials(V020_SCHEMA);
 
         MigrateResult result = flyway(V020_SCHEMA, null).migrate();
-        assertThat(result.migrationsExecuted).isEqualTo(2);
-        assertThat(currentVersion(V020_SCHEMA)).isEqualTo("022");
+        assertThat(result.migrationsExecuted).isEqualTo(MigrationVersions.countAfter(20));
+        assertThat(currentVersion(V020_SCHEMA)).isEqualTo(MigrationVersions.latest());
 
         // U02-A：只提交、无可靠提交证据，不凭 updated_at 猜时间。
         assertUnknownLegacy(V020_SCHEMA, "legacy-mat_responded", "2026-11-01T10:00:00Z");
@@ -124,8 +124,8 @@ class MaterialTimeMigrationIT {
                 """.formatted(V021_SCHEMA));
 
         MigrateResult result = flyway(V021_SCHEMA, null).migrate();
-        assertThat(result.migrationsExecuted).isEqualTo(1);
-        assertThat(currentVersion(V021_SCHEMA)).isEqualTo("022");
+        assertThat(result.migrationsExecuted).isEqualTo(MigrationVersions.countAfter(21));
+        assertThat(currentVersion(V021_SCHEMA)).isEqualTo(MigrationVersions.latest());
 
         // U02-D：仅 legacy 行被矫正；真实 UUID 新提交保留原时间并标记 EXACT。
         assertUnknownLegacy(V021_SCHEMA, "legacy-mat_responded", "2026-11-01T10:00:00Z");
@@ -150,11 +150,11 @@ class MaterialTimeMigrationIT {
     }
 
     @Test
-    void freshDatabaseReachesV022AndRejectsUnlabelledOrUnsafeTimeCombinations() {
+    void freshDatabaseReachesCurrentVersionAndRejectsUnlabelledOrUnsafeTimeCombinations() {
         resetSchema(EMPTY_SCHEMA);
         MigrateResult result = flyway(EMPTY_SCHEMA, null).migrate();
-        assertThat(result.migrationsExecuted).isGreaterThanOrEqualTo(22);
-        assertThat(currentVersion(EMPTY_SCHEMA)).isEqualTo("022");
+        assertThat(result.migrationsExecuted).isEqualTo(MigrationVersions.latestNumber());
+        assertThat(currentVersion(EMPTY_SCHEMA)).isEqualTo(MigrationVersions.latest());
         assertThat(queryInt(EMPTY_SCHEMA, "SELECT count(*) FROM material_response")).isZero();
 
         seedBase(EMPTY_SCHEMA);

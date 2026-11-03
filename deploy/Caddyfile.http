@@ -1,0 +1,9 @@
+# 局域网联调用：按 IP 提供 HTTP，不申请证书。
+# 正式域名环境继续用 deploy/Caddyfile。
+http:// {
+	encode gzip
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy app:8080
+}

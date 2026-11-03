@@ -19,7 +19,8 @@ import java.util.UUID;
 public class OperatorGrantAdminService {
 
     static final Set<String> CAPABILITIES = Set.of(
-            "HELP_ADMIN", "HELP_CONTENT_WRITE", "SUPPORT_HANDLE", "CONTENT_REVIEW");
+            "HELP_ADMIN", "HELP_CONTENT_WRITE", "SUPPORT_HANDLE", "CONTENT_REVIEW",
+            "CONTENT_REPORT_HANDLE");
 
     private final JdbcTemplate jdbc;
     private final AuditService audit;

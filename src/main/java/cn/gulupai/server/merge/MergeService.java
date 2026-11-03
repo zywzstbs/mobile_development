@@ -156,7 +156,7 @@ public class MergeService {
         if (!principal.userId().equals(row.initiatorId()) && !teacher(principal, row)) {
             throw new ApiException(ApiCode.FORBIDDEN);
         }
-        if (!List.of("VOTING", "WAIT_TEACHER", "READY", "RETURNED", "QUALIFICATION_REVIEW").contains(row.status())) {
+        if (!List.of("VOTING", "WAIT_FACT", "READY", "RETURNED", "QUALIFICATION_REVIEW").contains(row.status())) {
             throw ApiException.validation("已经结束的合并不能取消");
         }
         save(row, "CANCELLED", row.factCheckJson());
@@ -203,7 +203,7 @@ public class MergeService {
         }
         settle(row);
         row = merges.lock(id).orElseThrow();
-        if (!"WAIT_TEACHER".equals(row.status())) {
+        if (!"WAIT_FACT".equals(row.status())) {
             throw ApiException.validation("两侧都严格过半之后才能核对作业");
         }
         List<AssignmentRow> assignments = squares.listAssignments(row.sourceSquareId());
@@ -258,7 +258,7 @@ public class MergeService {
         merges.moveMemberships(row.sourceSquareId(), row.targetSquareId(), now);
         merges.revokeCodes(row.sourceSquareId(), now);
         merges.markMerged(row.sourceSquareId(), row.targetSquareId(), now);
-        save(row, "EXECUTED", row.factCheckJson());
+        save(row, "COMPLETED", row.factCheckJson());
         return view(merges.find(id).orElseThrow(), principal.userId());
     }
 
@@ -273,9 +273,9 @@ public class MergeService {
             return;
         }
         if (bothPassed(row)) {
-            save(row, "WAIT_TEACHER", row.factCheckJson());
+            save(row, "WAIT_FACT", row.factCheckJson());
         } else if (!clock.instant().isBefore(row.votingEndsAt())) {
-            save(row, "FAILED", row.factCheckJson());
+            save(row, "REJECTED", row.factCheckJson());
         }
     }
 
@@ -367,17 +367,28 @@ public class MergeService {
         String fact = row.factCheckJson() == null ? "" : row.factCheckJson().trim();
         List<Object> mappings = fact.startsWith("[") ? new ArrayList<>(read(fact, MAPS)) : List.of();
         boolean ready = "READY".equals(row.status());
-        boolean canCheck = "WAIT_TEACHER".equals(row.status());
+        boolean canCheck = "WAIT_FACT".equals(row.status());
         return new MergeViews.ProposalView(row.id(), row.sourceSquareId(), row.targetSquareId(), row.reason(),
                 read(row.evidenceJson(), LINKS), row.status(), sides, assignments, mappings, canCheck, ready, row.revision());
     }
 
     private MergeViews.SideView side(String squareId, List<String> electorate, List<BallotRow> ballots, String userId) {
-        int agree = (int) ballots.stream().filter(item -> squareId.equals(item.squareId()) && "AGREE".equals(item.decision())).count();
+        int eligible = electorate.size();
+        int agree = count(ballots, squareId, "AGREE");
+        int disagree = count(ballots, squareId, "DISAGREE");
+        int abstain = count(ballots, squareId, "ABSTAIN");
+        int required = eligible / 2 + 1;
         BallotRow mine = ballots.stream().filter(item -> squareId.equals(item.squareId()) && userId.equals(item.userId()))
                 .findFirst().orElse(null);
-        return new MergeViews.SideView(squareId, electorate.size(), agree, electorate.size() / 2 + 1,
-                mine == null ? Map.of() : new MergeViews.BallotView(mine.decision(), mine.revision()));
+        Object ballot = mine == null ? Map.of() : new MergeViews.BallotView(
+                mine.decision(), mine.revision(), mine.squareId(), mine.at());
+        return new MergeViews.SideView(squareId, eligible, agree, disagree, abstain,
+                Math.max(0, eligible - agree - disagree - abstain), agree >= required, required, ballot);
+    }
+
+    private int count(List<BallotRow> ballots, String squareId, String decision) {
+        return (int) ballots.stream().filter(item -> squareId.equals(item.squareId())
+                && decision.equals(item.decision())).count();
     }
 
     private List<MergeViews.LinkView> evidence(List<MergeRequests.LinkRef> refs) {

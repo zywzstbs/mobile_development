@@ -1,5 +1,6 @@
 package cn.gulupai.server.it;
 
+import cn.gulupai.server.support.HelpArticleText;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,9 +27,10 @@ class FlywayMigrationIT {
     @Test
     void baselineMigrationIsApplied() {
         assertThat(flyway.info().current()).isNotNull();
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo(MigrationVersions.latest());
         assertThat(flyway.info().applied())
                 .extracting(info -> info.getVersion() == null ? null : info.getVersion().getVersion())
-                .contains("001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014", "015", "016", "017", "018", "019", "020", "021", "022");
+                .containsAll(MigrationVersions.all());
 
         Integer rows = jdbcTemplate.queryForObject(
                 "select count(*) from app_meta where meta_key in ('schema_baseline', 'contract_version')",
@@ -97,11 +99,17 @@ class FlywayMigrationIT {
         Integer helpTables = jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM information_schema.tables
                 WHERE table_schema = current_schema()
-                  AND table_name IN ('help_article', 'help_feedback', 'support_route', 'support_ticket',
-                                     'support_reply', 'support_history', 'operator_grant',
+                  AND table_name IN ('help_article', 'help_feedback', 'help_content_pack', 'support_route',
+                                     'support_ticket', 'support_reply', 'support_history', 'operator_grant',
                                      'content_report', 'report_handling')
                 """, Integer.class);
-        assertThat(helpTables).isEqualTo(9);
+        assertThat(helpTables).isEqualTo(10);
+
+        Integer bodyCapacity = jdbcTemplate.queryForObject("""
+                SELECT character_maximum_length FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'help_article' AND column_name = 'body'
+                """, Integer.class);
+        assertThat(bodyCapacity).isEqualTo(HelpArticleText.MAX_DERIVED_BODY);
 
         Integer timeColumns = jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM information_schema.columns
@@ -120,6 +128,19 @@ class FlywayMigrationIT {
                                           'ck_material_response_recovery')
                 """, Integer.class);
         assertThat(timeConstraints).isEqualTo(4);
+
+        String renewalNullable = jdbcTemplate.queryForObject("""
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'agreement' AND column_name = 'renewal_reason'
+                """, String.class);
+        assertThat(renewalNullable).isEqualTo("YES");
+        String acceptanceRevision = jdbcTemplate.queryForObject("""
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'acceptance' AND column_name = 'revision'
+                """, String.class);
+        assertThat(acceptanceRevision).isEqualTo("NO");
     }
 
     @Test

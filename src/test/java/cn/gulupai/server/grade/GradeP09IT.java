@@ -1,6 +1,7 @@
 package cn.gulupai.server.grade;
 
 import cn.gulupai.server.common.clock.MutableClock;
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.identity.cli.AcademicImportService;
 import cn.gulupai.server.identity.cli.AdminImportService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -584,7 +585,7 @@ class GradeP09IT {
     }
 
     private void clearAll() {
-        for (String table : java.util.List.of(
+        TestSchemaCleaner.deleteAll(jdbcTemplate, java.util.List.of(
                 "teacher_summary_consent", "teacher_summary", "grade_appeal", "grade_snapshot",
                 "grade_publication", "settlement", "ledger_correction", "grade_draft", "grade_rule",
                 "contribution_confirmation", "unit_acceptance", "acceptance", "submission",
@@ -605,9 +606,7 @@ class GradeP09IT {
                 "assignment", "course_membership", "preview_token", "square",
                 "verified_enrollment", "verified_course", "course_name", "period", "term",
                 "operation_receipt", "access_token", "auth_session", "audit_event",
-                "rate_window", "import_batch", "user_role", "user_profile", "app_user", "school")) {
-            jdbcTemplate.update("DELETE FROM " + table);
-        }
+                "rate_window", "import_batch", "user_role", "user_profile", "app_user", "school"));
     }
 
     private String login(String loginId, String password) throws Exception {

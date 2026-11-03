@@ -23,6 +23,7 @@ import java.util.UUID;
 @Service
 public class CursorService {
 
+    public static final String ANONYMOUS_SUBJECT = "PUBLIC";
     private static final Duration TTL = Duration.ofMinutes(15);
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
     };
@@ -50,13 +51,27 @@ public class CursorService {
     @Transactional
     public String create(String userId, String scopeKey, String queryHash, int epoch,
                          List<String> ids, int position, Instant expiresAt) {
+        return insert("USER", userId, userId, scopeKey, queryHash, epoch, ids, position, expiresAt);
+    }
+
+    /**
+     * 匿名公共快照。subject_key 固定为 PUBLIC，user_id 保持空，不引用 app_user。
+     */
+    @Transactional
+    public String createAnonymous(String scopeKey, String queryHash, int epoch, List<String> ids,
+                                  int position, Instant expiresAt) {
+        return insert("ANONYMOUS", null, ANONYMOUS_SUBJECT, scopeKey, queryHash, epoch, ids, position, expiresAt);
+    }
+
+    private String insert(String subjectType, String userId, String subjectKey, String scopeKey,
+                          String queryHash, int epoch, List<String> ids, int position, Instant expiresAt) {
         String token = Hashing.newToken();
         jdbcTemplate.update("""
                 INSERT INTO cursor_snapshot
-                    (id, token_hash, user_id, scope_key, query_hash, epoch, ids_json, total,
-                     position, expires_at, revision)
-                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, 1)
-                """, UUID.randomUUID().toString(), Hashing.sha256Hex(token), userId,
+                    (id, token_hash, user_id, subject_type, subject_key, scope_key, query_hash, epoch,
+                     ids_json, total, position, expires_at, revision)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, 1)
+                """, UUID.randomUUID().toString(), Hashing.sha256Hex(token), userId, subjectType, subjectKey,
                 scopeKey, queryHash, epoch, writeIds(ids), ids.size(), position,
                 OffsetDateTime.ofInstant(expiresAt, ZoneOffset.UTC));
         return token;
@@ -76,16 +91,36 @@ public class CursorService {
         if (token == null || token.isBlank()) {
             throw new ApiException(ApiCode.CURSOR_EXPIRED);
         }
-        List<CursorRow> rows = jdbcTemplate.query("""
+        return load(token, scopeKey, queryHash, expectedEpoch, """
                         SELECT ids_json::text AS ids_json, total, position, expires_at, query_hash,
                                scope_key, epoch
-                        FROM cursor_snapshot WHERE token_hash = ? AND user_id = ?
-                        """,
+                        FROM cursor_snapshot
+                        WHERE token_hash = ? AND user_id = ? AND subject_type = 'USER'
+                        """, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public CursorData resolveAnonymous(String token, String scopeKey, String queryHash) {
+        return load(token, scopeKey, queryHash, null, """
+                        SELECT ids_json::text AS ids_json, total, position, expires_at, query_hash,
+                               scope_key, epoch
+                        FROM cursor_snapshot
+                        WHERE token_hash = ? AND user_id IS NULL AND subject_type = 'ANONYMOUS'
+                          AND subject_key = ?
+                        """, ANONYMOUS_SUBJECT);
+    }
+
+    private CursorData load(String token, String scopeKey, String queryHash, Integer expectedEpoch,
+                            String sql, Object subject) {
+        if (token == null || token.isBlank()) {
+            throw new ApiException(ApiCode.CURSOR_EXPIRED);
+        }
+        List<CursorRow> rows = jdbcTemplate.query(sql,
                 (rs, rowNum) -> new CursorRow(
                         rs.getString("ids_json"), rs.getInt("total"), rs.getInt("position"),
                         rs.getObject("expires_at", OffsetDateTime.class).toInstant(),
                         rs.getString("query_hash"), rs.getString("scope_key"), rs.getInt("epoch")),
-                Hashing.sha256Hex(token), userId);
+                Hashing.sha256Hex(token), subject);
         if (rows.isEmpty()) {
             throw new ApiException(ApiCode.CURSOR_EXPIRED);
         }

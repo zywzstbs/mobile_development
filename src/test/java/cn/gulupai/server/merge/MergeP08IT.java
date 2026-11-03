@@ -1,5 +1,6 @@
 package cn.gulupai.server.merge;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.common.security.Hashing;
 import cn.gulupai.server.identity.cli.AcademicImportService;
@@ -109,7 +110,9 @@ class MergeP08IT {
                         .content("{\"expectedRevision\":" + revisionOf(teacher, proposalId) + "}"))
                 .andExpect(status().isUnprocessableEntity());
         JsonNode waiting = vote(member, proposalId, targetId, "p08-t2");
-        assertThat(waiting.get("status").asText()).isEqualTo("WAIT_TEACHER");
+        assertThat(waiting.get("status").asText()).isEqualTo("WAIT_FACT");
+        assertThat(waiting.get("sides").get(0).get("eligibleCount").asInt()).isPositive();
+        assertThat(waiting.get("sides").get(0).get("passed").asBoolean()).isTrue();
         mockMvc.perform(post("/api/v1/square-merge-proposals/{id}/fact-checks", proposalId)
                         .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p08-mix")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -120,8 +123,10 @@ class MergeP08IT {
         String cursor = "p08-cursor-token";
         jdbcTemplate.update("""
                 INSERT INTO cursor_snapshot
-                    (id, token_hash, user_id, scope_key, query_hash, epoch, ids_json, total, position, expires_at)
-                VALUES (?, ?, 'user_demo_teacher_01', ?, ?, ?, '[]'::jsonb, 0, 0, '2026-10-31T01:00:00Z')
+                    (id, token_hash, user_id, subject_type, subject_key, scope_key, query_hash, epoch,
+                     ids_json, total, position, expires_at)
+                VALUES (?, ?, 'user_demo_teacher_01', 'USER', 'user_demo_teacher_01', ?, ?, ?,
+                        '[]'::jsonb, 0, 0, '2026-10-31T01:00:00Z')
                 """, UUID.randomUUID().toString(), Hashing.sha256Hex(cursor),
                 "SQUARE_JOIN_REQUESTS:" + targetId,
                 Hashing.sha256Hex("null|" + epoch), epoch);
@@ -136,7 +141,7 @@ class MergeP08IT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedRevision\":" + revisionOf(teacher, proposalId) + "}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("EXECUTED"));
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
         assertThat(jdbcTemplate.queryForObject("SELECT id FROM assignment WHERE id = ?", String.class, source.assignmentId()))
                 .isEqualTo(source.assignmentId());
         assertThat(jdbcTemplate.queryForObject("SELECT square_id FROM assignment WHERE id = ?", String.class, source.assignmentId()))
@@ -351,7 +356,7 @@ class MergeP08IT {
     }
 
     private void clearAll() {
-        for (String table : List.of(
+        TestSchemaCleaner.deleteAll(jdbcTemplate, List.of(
                 "personnel_handoff", "material_request", "personnel_record", "personnel_case_grant", "personnel_case",
                 "removal_ballot", "handover_ack", "handover_item", "member_change_event",
                 "member_change", "removal_vote",
@@ -375,9 +380,7 @@ class MergeP08IT {
                 "assignment", "course_membership", "preview_token", "square",
                 "verified_enrollment", "verified_course", "course_name", "period", "term",
                 "operation_receipt", "access_token", "auth_session", "audit_event",
-                "rate_window", "import_batch", "user_role", "user_profile", "app_user", "school")) {
-            jdbcTemplate.update("DELETE FROM " + table);
-        }
+                "rate_window", "import_batch", "user_role", "user_profile", "app_user", "school"));
     }
 
     private String login(String loginId, String password) throws Exception {

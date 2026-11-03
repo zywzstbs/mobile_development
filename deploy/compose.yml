@@ -20,6 +20,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     mem_limit: 450m
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gulupai -d gulupai"]
       interval: 5s
@@ -44,6 +45,7 @@ services:
       DB_POOL_SIZE: "6"
       IDEMPOTENCY_ENCRYPTION_KEY: ${IDEMPOTENCY_ENCRYPTION_KEY:?set IDEMPOTENCY_ENCRYPTION_KEY}
       APP_FILES_ROOT: /data/files
+      APP_FILES_PUBLIC_BASE_URL: ${APP_FILES_PUBLIC_BASE_URL:?set APP_FILES_PUBLIC_BASE_URL}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx448m"
     volumes:
       - files:/data/files
@@ -51,6 +53,7 @@ services:
       db:
         condition: service_healthy
     mem_limit: 800m
+    restart: unless-stopped
     logging:
       driver: json-file
       options:
@@ -71,6 +74,7 @@ services:
     depends_on:
       - app
     mem_limit: 96m
+    restart: unless-stopped
     logging:
       driver: json-file
       options:

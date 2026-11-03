@@ -72,8 +72,8 @@ class ChatMigrationV019IT {
                     .locations("classpath:db/migration")
                     .load();
             MigrateResult upgrade = latest.migrate();
-            assertThat(upgrade.migrationsExecuted).isEqualTo(3);
-            assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("022");
+            assertThat(upgrade.migrationsExecuted).isEqualTo(MigrationVersions.countAfter(19));
+            assertThat(latest.info().current().getVersion().getVersion()).isEqualTo(MigrationVersions.latest());
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + p + "chat_sync_cursor",
                     Integer.class)).isZero();
             assertThat(jdbc.queryForObject("""

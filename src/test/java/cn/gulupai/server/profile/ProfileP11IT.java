@@ -1,5 +1,6 @@
 package cn.gulupai.server.profile;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.identity.cli.AcademicImportService;
 import cn.gulupai.server.identity.cli.AdminImportService;
@@ -67,7 +68,7 @@ class ProfileP11IT {
     }
 
     private void clearAll() {
-        for (String table : List.of("chat_sync_cursor", "chat_delivery_range", "report_snapshot", "delivery_release", "delivery_release_preview",
+        TestSchemaCleaner.deleteAll(jdbc, List.of("chat_sync_cursor", "chat_delivery_range", "report_snapshot", "delivery_release", "delivery_release_preview",
                 "delivery_release_draft", "overall_reflection", "project_reflection",
                 "file_reference", "file_authorization", "cleanup_plan", "stored_file",
                 "personnel_handoff", "material_request", "personnel_record", "personnel_case_grant", "personnel_case",
@@ -92,9 +93,7 @@ class ProfileP11IT {
                 "merge_ballot", "square_merge", "preview_token", "square", "verified_enrollment",
                 "verified_course", "course_name", "period", "term", "operation_receipt", "access_token",
                 "auth_session", "audit_event", "rate_window", "import_batch", "user_role", "user_profile",
-                "app_user", "school")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+                "app_user", "school"));
     }
 
     @Test

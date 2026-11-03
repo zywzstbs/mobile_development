@@ -49,7 +49,7 @@ public class MergeRepository {
     public boolean openInvolving(String left, String right) {
         Integer count = jdbc.queryForObject("""
                 SELECT count(*) FROM square_merge
-                WHERE status IN ('VOTING', 'WAIT_TEACHER', 'READY')
+                WHERE status IN ('VOTING', 'WAIT_FACT', 'READY')
                   AND (source_square_id IN (?, ?) OR target_square_id IN (?, ?))
                 """, Integer.class, left, right, left, right);
         return count != null && count > 0;
@@ -67,13 +67,16 @@ public class MergeRepository {
         return jdbc.query("""
                 SELECT * FROM merge_ballot WHERE proposal_id = ? AND square_id = ? AND user_id = ?
                 """, (rs, n) -> new BallotRow(rs.getString("square_id"), rs.getString("user_id"),
-                rs.getString("decision"), rs.getInt("revision")), proposalId, squareId, userId).stream().findFirst();
+                rs.getString("decision"), rs.getInt("revision"),
+                rs.getObject("at", OffsetDateTime.class).toInstant()),
+                proposalId, squareId, userId).stream().findFirst();
     }
 
     public List<BallotRow> ballots(String proposalId) {
         return jdbc.query("SELECT * FROM merge_ballot WHERE proposal_id = ?",
                 (rs, n) -> new BallotRow(rs.getString("square_id"), rs.getString("user_id"),
-                        rs.getString("decision"), rs.getInt("revision")), proposalId);
+                        rs.getString("decision"), rs.getInt("revision"),
+                        rs.getObject("at", OffsetDateTime.class).toInstant()), proposalId);
     }
 
     public void insertBallot(String proposalId, String squareId, String userId, String decision, Instant at) {
@@ -172,6 +175,6 @@ public class MergeRepository {
                               Instant createdAt) {
     }
 
-    public record BallotRow(String squareId, String userId, String decision, int revision) {
+    public record BallotRow(String squareId, String userId, String decision, int revision, Instant at) {
     }
 }

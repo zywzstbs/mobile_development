@@ -67,6 +67,14 @@ public class FileRepository {
                 """, (int) size, sha256, offset(at), offset(at), id, revision);
     }
 
+    public int assignTicket(String id, String ticketId, Instant at) {
+        return jdbc.update("""
+                UPDATE stored_file SET ticket_id = ?, updated_at = ?
+                WHERE id = ? AND purpose = 'SUPPORT_ATTACHMENT' AND status = 'READY'
+                  AND (ticket_id IS NULL OR ticket_id = ?)
+                """, ticketId, offset(at), id, ticketId);
+    }
+
     public int markReady(String id, int revision, Instant at) {
         return jdbc.update("""
                 UPDATE stored_file

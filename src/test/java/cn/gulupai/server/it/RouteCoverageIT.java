@@ -92,6 +92,41 @@ class RouteCoverageIT {
         assertThat(business).containsExactlyInAnyOrderElementsOf(expected);
     }
 
+    @Test
+    void p58CatalogMatchesSpringMappings() throws Exception {
+        Map<String, String> catalog = new LinkedHashMap<>();
+        Pattern row = Pattern.compile("\\|\\[([A-Z]+-\\d+)\\]\\([^)]*\\)\\|`([A-Z]+) ([^`]+)`\\|");
+        for (String line : Files.readAllLines(Path.of("docs/修改/咕噜派_API接口设计文档_P58_完整重编版.md"))) {
+            if (line.startsWith("## 9.")) {
+                break;
+            }
+            Matcher matcher = row.matcher(line);
+            if (!matcher.find()) {
+                continue;
+            }
+            String id = matcher.group(1);
+            String route = matcher.group(2) + " " + matcher.group(3);
+            assertThat(catalog.put(id, route)).as("P58 重复接口 " + id).isNull();
+        }
+        assertThat(catalog).hasSize(281);
+        Set<String> business = new TreeSet<>();
+        handlerMapping.getHandlerMethods().forEach((info, handler) -> {
+            if (isTestFixture(handler) || info.getPathPatternsCondition() == null) {
+                return;
+            }
+            for (String pattern : info.getPathPatternsCondition().getPatternValues()) {
+                if (!pattern.startsWith(API_PREFIX + "/")) {
+                    continue;
+                }
+                String path = pattern.substring(API_PREFIX.length());
+                for (RequestMethod method : info.getMethodsCondition().getMethods()) {
+                    business.add(method.name() + " " + path);
+                }
+            }
+        });
+        assertThat(business).containsExactlyInAnyOrderElementsOf(new TreeSet<>(catalog.values()));
+    }
+
     private static void classify(Set<String> business, Set<String> infrastructure, Set<String> testFixtures,
                                  Set<String> unexpected, HandlerMethod handler, String method, String pattern) {
         String route = method + " " + pattern;

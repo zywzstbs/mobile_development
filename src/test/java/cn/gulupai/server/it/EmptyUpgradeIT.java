@@ -39,8 +39,8 @@ class EmptyUpgradeIT {
                 .locations("classpath:db/migration")
                 .load();
         MigrateResult first = flyway.migrate();
-        assertThat(first.migrationsExecuted).isGreaterThanOrEqualTo(22);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("022");
+        assertThat(first.migrationsExecuted).isEqualTo(MigrationVersions.latestNumber());
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo(MigrationVersions.latest());
 
         MigrateResult second = flyway.migrate();
         assertThat(second.migrationsExecuted).isZero();
@@ -68,6 +68,12 @@ class EmptyUpgradeIT {
                 END $$
                 """);
 
+        String renewalNullable = jdbcTemplate.queryForObject("""
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_schema = 'gulupai_p16_empty'
+                  AND table_name = 'agreement' AND column_name = 'renewal_reason'
+                """, String.class);
+        assertThat(renewalNullable).isEqualTo("YES");
         jdbcTemplate.execute("DROP SCHEMA gulupai_p16_empty CASCADE");
         String restoredVersion = jdbcTemplate.queryForObject("""
                 SELECT version FROM gulupai_p16_restore.flyway_schema_history
@@ -76,7 +82,7 @@ class EmptyUpgradeIT {
         String restoredBaseline = jdbcTemplate.queryForObject(
                 "SELECT meta_value FROM gulupai_p16_restore.app_meta WHERE meta_key = 'schema_baseline'",
                 String.class);
-        assertThat(restoredVersion).isEqualTo("022");
+        assertThat(restoredVersion).isEqualTo(MigrationVersions.latest());
         assertThat(restoredBaseline).isEqualTo("P00");
     }
 }

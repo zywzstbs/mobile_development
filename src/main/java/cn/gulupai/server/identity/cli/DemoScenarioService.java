@@ -23,6 +23,7 @@ import cn.gulupai.server.notice.application.NoticeService;
 import cn.gulupai.server.report.ReportRequests;
 import cn.gulupai.server.report.ReportService;
 import cn.gulupai.server.support.HelpSupportService;
+import cn.gulupai.server.support.SupportRequests;
 import cn.gulupai.server.support.OperatorGrantAdminService;
 import cn.gulupai.server.task.api.TaskRequests;
 import cn.gulupai.server.task.application.TaskService;
@@ -205,9 +206,15 @@ public class DemoScenarioService {
                 "demo-full-notice", "/demo-seed/notices");
 
         ensureRoutes();
-        support.createTicket(user(STUDENT_01), Map.of(
-                "routeId", "route_support", "clientRequestId", "demo-ticket-1",
-                "subject", "演示求助", "body", "现场可以继续回复、解决或重开", "attachments", List.of()),
+        jdbc.update("""
+                UPDATE support_route SET receiver_user_id='user_demo_full_operator'
+                WHERE id='route_support'
+                """);
+        support.createTicket(user(STUDENT_01), new SupportRequests.CreateTicket(
+                "demo-ticket-1", "route_support", "OPERATION", "演示求助",
+                "现场可以继续回复、解决或重开", null,
+                new SupportRequests.TicketContext("APPLICATION", null, "NETWORK_ERROR", "0.59.0"),
+                List.of()),
                 "demo-full-ticket", "/demo-seed/tickets");
         uploadPng(user(STUDENT_01));
 
@@ -230,9 +237,11 @@ public class DemoScenarioService {
                 OffsetDateTime.ofInstant(past, ZoneOffset.UTC), expired.invitation().id());
         jdbc.update("""
                 INSERT INTO cursor_snapshot
-                    (id, token_hash, user_id, scope_key, query_hash, epoch, ids_json, total, position, expires_at)
-                VALUES ('cursor_demo_expired', ?, ?, 'demo-squares', ?, 1, '[]'::jsonb, 0, 0, ?)
-                """, Hashing.sha256Hex("demo-cursor-token"), STUDENT_01, Hashing.sha256Hex("demo-cursor-query"),
+                    (id, token_hash, user_id, subject_type, subject_key, scope_key, query_hash, epoch,
+                     ids_json, total, position, expires_at)
+                VALUES ('cursor_demo_expired', ?, ?, 'USER', ?, 'demo-squares', ?, 1, '[]'::jsonb, 0, 0, ?)
+                """, Hashing.sha256Hex("demo-cursor-token"), STUDENT_01, STUDENT_01,
+                Hashing.sha256Hex("demo-cursor-query"),
                 OffsetDateTime.ofInstant(past, ZoneOffset.UTC));
         grants.grant(ASSISTANT_A, "HELP_CONTENT_WRITE", "GLOBAL", null, true, false, "cli");
         grants.grant(ASSISTANT_A, "HELP_CONTENT_WRITE", "GLOBAL", null, false, false, "cli");
@@ -272,10 +281,10 @@ public class DemoScenarioService {
 
     private void ensureRoutes() {
         jdbc.update("""
-                INSERT INTO support_route(id, type, name, available) VALUES
-                ('route_support','SUPPORT','平台使用求助',true),
-                ('route_course','COURSE','课程与教学求助',true),
-                ('route_grades','GRADES','成绩与评价求助',true)
+                INSERT INTO support_route(id, type, name, available, category) VALUES
+                ('route_support','SUPPORT','平台使用求助',true,'OPERATION'),
+                ('route_course','COURSE','课程与教学求助',true,'COURSE_REQUIREMENT'),
+                ('route_grades','GRADES','成绩与评价求助',true,'GRADES')
                 ON CONFLICT (id) DO NOTHING
                 """);
     }

@@ -4,10 +4,14 @@
       "id": "help_general_1",
       "audience": "GENERAL",
       "title": "如何提交任务",
-      "summary": "提交说明",
-      "body": "在任务详情提交文件",
       "category": "GENERAL",
+      "roles": ["STUDENT"],
       "appVersionRange": "1.0.*",
+      "prerequisites": [],
+      "steps": ["在任务详情提交文件"],
+      "outcomes": ["任务进入已提交"],
+      "failureAction": "提交说明",
+      "entry": {"type": "TASK", "id": null},
       "published": true
     }
   ]

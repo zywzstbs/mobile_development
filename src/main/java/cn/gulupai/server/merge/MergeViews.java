@@ -11,10 +11,13 @@ public final class MergeViews {
     public record LinkView(String kind, String url, String title) {
     }
 
-    public record BallotView(String choice, int revision) {
+    public record BallotView(String choice, int revision, String squareId, Instant updatedAt) {
     }
 
-    public record SideView(String squareId, int electorateCount, int agreeCount, int requiredCount, Object myBallot) {
+    public record SideView(
+            String squareId, int eligibleCount, int agreeCount, int disagree, int abstain, int unvoted,
+            boolean passed, int requiredCount, Object myBallot
+    ) {
     }
 
     public record AssignmentView(

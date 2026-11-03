@@ -104,14 +104,36 @@ public class NoticeRepository {
     public int updateAnnouncement(String id, int revision, String title, String content,
                                   int contentVersion, int displayRevision, String snapshot,
                                   int recipientCount, String changeSummary, boolean requiresAck,
-                                  Instant ackDue, Instant expires, int newRevision, Instant now) {
+                                  Instant ackDue, Instant expires, String assignmentId,
+                                  String category, String importance, int newRevision, Instant now) {
         return jdbc.update("""
                 UPDATE announcement SET title = ?, content = ?, content_version = ?,
                     display_revision = ?, recipient_snapshot_id = ?, recipient_count = ?,
                     change_summary = ?, requires_acknowledgement = ?, acknowledge_due_at = ?,
-                    expires_at = ?, revision = ?, updated_at = ? WHERE id = ? AND revision = ?
+                    expires_at = ?, assignment_id = ?, category = ?, importance = ?,
+                    revision = ?, updated_at = ? WHERE id = ? AND revision = ?
                 """, title, content, contentVersion, displayRevision, snapshot, recipientCount,
-                changeSummary, requiresAck, time(ackDue), time(expires), newRevision, time(now), id, revision);
+                changeSummary, requiresAck, time(ackDue), time(expires), assignmentId, category, importance,
+                newRevision, time(now), id, revision);
+    }
+
+    public boolean assignmentInSquare(String assignmentId, String squareId) {
+        Boolean ok = jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM assignment WHERE id = ? AND square_id = ?)
+                """, Boolean.class, assignmentId, squareId);
+        return Boolean.TRUE.equals(ok);
+    }
+
+    public List<String> assignmentAudience(String squareId, String assignmentId) {
+        return jdbc.query("""
+                SELECT DISTINCT user_id FROM (
+                  SELECT m.user_id FROM membership m
+                  JOIN project p ON p.id = m.project_id
+                  WHERE p.assignment_id = ? AND p.square_id = ? AND m.status = 'ACTIVE'
+                  UNION
+                  SELECT user_id FROM teacher_assignment WHERE square_id = ? AND active
+                ) x
+                """, (rs, n) -> rs.getString(1), assignmentId, squareId, squareId);
     }
 
     public int revoke(String id, int revision, String reason, Instant now) {
@@ -289,16 +311,23 @@ public class NoticeRepository {
     public Optional<PreviewRow> preview(String hash) {
         return jdbc.query("""
                 SELECT * FROM announcement_preview WHERE token_hash = ?
-                """, (rs, n) -> new PreviewRow(rs.getString("id"), rs.getString("square_id"),
-                rs.getString("created_by"), rs.getString("payload_json"),
-                rs.getObject("expires_at", OffsetDateTime.class).toInstant(),
-                rs.getObject("used_at", OffsetDateTime.class) == null ? null
-                        : rs.getObject("used_at", OffsetDateTime.class).toInstant()),
-                hash).stream().findFirst();
+                """, previewMapper, hash).stream().findFirst();
     }
 
-    public void usePreview(String id, Instant now) {
-        jdbc.update("UPDATE announcement_preview SET used_at = ? WHERE id = ? AND used_at IS NULL",
+    public Optional<PreviewRow> lockPreview(String hash) {
+        return jdbc.query("""
+                SELECT * FROM announcement_preview WHERE token_hash = ? FOR UPDATE
+                """, previewMapper, hash).stream().findFirst();
+    }
+
+    private final RowMapper<PreviewRow> previewMapper = (rs, n) -> new PreviewRow(rs.getString("id"),
+            rs.getString("square_id"), rs.getString("created_by"), rs.getString("payload_json"),
+            rs.getObject("expires_at", OffsetDateTime.class).toInstant(),
+            rs.getObject("used_at", OffsetDateTime.class) == null ? null
+                    : rs.getObject("used_at", OffsetDateTime.class).toInstant());
+
+    public int usePreview(String id, Instant now) {
+        return jdbc.update("UPDATE announcement_preview SET used_at = ? WHERE id = ? AND used_at IS NULL",
                 time(now), id);
     }
 

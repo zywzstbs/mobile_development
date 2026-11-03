@@ -12,6 +12,7 @@ import cn.gulupai.server.course.persistence.SquareRepository;
 import cn.gulupai.server.course.persistence.SquareRow;
 import cn.gulupai.server.file.FileRepository.AuthorizationRow;
 import cn.gulupai.server.file.FileRepository.StoredFileRow;
+import cn.gulupai.server.support.SupportTicketAccess;
 import cn.gulupai.server.team.persistence.ProjectRow;
 import cn.gulupai.server.team.persistence.TeamRepository;
 import org.springframework.stereotype.Service;
@@ -27,7 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 上传意图、完成校验和下载授权。人员事项和工单还没有真实资源，策略直接拒绝，不返回放行占位。
+ * 上传意图、完成校验和下载授权。求助附件在无工单时仅本人可见；关联工单后按当前工单资格读取。
  */
 @Service
 public class FileService {
@@ -50,10 +51,12 @@ public class FileService {
     private final IdempotencyService idempotency;
     private final AuditService audit;
     private final Clock clock;
+    private final SupportTicketAccess ticketAccess;
 
     public FileService(FileRepository files, FileStorage storage, FileProperties properties,
                        TeamRepository teams, SquareRepository squares, CurrentUserPolicy policy,
-                       IdempotencyService idempotency, AuditService audit, Clock clock) {
+                       IdempotencyService idempotency, AuditService audit, Clock clock,
+                       SupportTicketAccess ticketAccess) {
         this.files = files;
         this.storage = storage;
         this.properties = properties;
@@ -63,6 +66,7 @@ public class FileService {
         this.idempotency = idempotency;
         this.audit = audit;
         this.clock = clock;
+        this.ticketAccess = ticketAccess;
     }
 
     public IntentView createIntent(AuthenticatedUser principal, IntentRequest request,
@@ -72,7 +76,12 @@ public class FileService {
                 new IdempotencyRequest(principal, "POST", path, idempotencyKey, request, List.of()),
                 IntentView.class,
                 () -> policy.requireActiveBusinessUser(principal),
-                () -> createIntentOnce(principal, request));
+                () -> createIntentOnce(principal, request),
+                cached -> {
+                    policy.requireActiveBusinessUser(principal);
+                    authorizeScope(principal, request);
+                    return cached;
+                });
     }
 
     public FileView complete(AuthenticatedUser principal, String fileId, CompletionRequest request,
@@ -102,7 +111,15 @@ public class FileService {
                 new IdempotencyRequest(principal, "POST", path, idempotencyKey, Map.of(), List.of()),
                 DownloadView.class,
                 () -> policy.requireActiveBusinessUser(principal),
-                () -> authorizeDownloadOnce(principal, fileId));
+                () -> authorizeDownloadOnce(principal, fileId),
+                cached -> {
+                    policy.requireActiveBusinessUser(principal);
+                    StoredFileRow file = files.findFile(fileId).orElseThrow(ApiException::notFound);
+                    if (!"READY".equals(file.status()) || !canRead(principal.userId(), file)) {
+                        throw new ApiException(ApiCode.FORBIDDEN);
+                    }
+                    return cached;
+                });
     }
 
     public void receive(String token, String contentType, InputStream body) {
@@ -145,6 +162,9 @@ public class FileService {
         StoredFileRow file = files.findFile(authorization.fileId()).orElseThrow(ApiException::notFound);
         if (!"READY".equals(file.status()) || !storage.readyExists(file.id())) {
             throw new ApiException(ApiCode.NOT_FOUND);
+        }
+        if (!ticketAccess.accountActive(authorization.userId())) {
+            throw new ApiException(ApiCode.SESSION_EXPIRED);
         }
         if (!canRead(authorization.userId(), file)) {
             throw new ApiException(ApiCode.FORBIDDEN);
@@ -306,8 +326,8 @@ public class FileService {
                 if (project || caseId) {
                     throw ApiException.validation("求助附件不能指定项目或事项");
                 }
-                if (ticket) {
-                    throw new ApiException(ApiCode.FORBIDDEN, "求助工单尚未接入，不能上传关联附件");
+                if (ticket && !ticketAccess.canReadTicket(principal.userId(), request.ticketId())) {
+                    throw new ApiException(ApiCode.FORBIDDEN);
                 }
             }
             case "MATERIAL_PROOF" -> throw new ApiException(ApiCode.FORBIDDEN, "人员事项尚未接入，不能上传证明材料");
@@ -320,7 +340,9 @@ public class FileService {
             case "DELIVERY_ARTIFACT" -> file.projectId() != null && isMember(file.projectId(), userId);
             case "WORK_ARTIFACT" -> userId.equals(file.uploaderId())
                     && (file.projectId() == null || isMember(file.projectId(), userId));
-            case "SUPPORT_ATTACHMENT" -> file.ticketId() == null && userId.equals(file.uploaderId());
+            case "SUPPORT_ATTACHMENT" -> file.ticketId() == null
+                    ? userId.equals(file.uploaderId()) && ticketAccess.accountActive(userId)
+                    : ticketAccess.canReadTicket(userId, file.ticketId());
             default -> false;
         };
     }

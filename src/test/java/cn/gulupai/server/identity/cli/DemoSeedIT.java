@@ -1,5 +1,6 @@
 package cn.gulupai.server.identity.cli;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,7 @@ class DemoSeedIT {
     }
 
     private void clearAll() {
-        for (String table : List.of("help_article", "help_feedback", "support_history", "support_reply",
+        TestSchemaCleaner.deleteAll(jdbc, List.of("help_article", "help_feedback", "support_history", "support_reply",
                 "support_ticket", "support_route", "operator_grant", "report_handling", "content_report",
                 "announcement_reminder", "announcement_preview", "announcement_receipt",
                 "announcement_recipient", "announcement_version", "announcement",
@@ -146,8 +147,6 @@ class DemoSeedIT {
                 "course_membership", "merge_ballot", "square_merge", "preview_token", "square",
                 "verified_enrollment", "verified_course", "course_name", "period", "term",
                 "operation_receipt", "access_token", "auth_session", "audit_event", "rate_window",
-                "import_batch", "user_role", "user_profile", "app_user", "school")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+                "import_batch", "user_role", "user_profile", "app_user", "school"));
     }
 }

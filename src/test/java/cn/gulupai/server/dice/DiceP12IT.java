@@ -1,5 +1,6 @@
 package cn.gulupai.server.dice;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.dice.application.RandomSource;
 import cn.gulupai.server.identity.cli.AcademicImportService;
@@ -69,7 +70,7 @@ class DiceP12IT {
     }
 
     private void clearAll() {
-        for (String table : List.of("announcement_reminder", "announcement_preview", "announcement_receipt",
+        TestSchemaCleaner.deleteAll(jdbc, List.of("announcement_reminder", "announcement_preview", "announcement_receipt",
                 "announcement_recipient", "announcement_version", "help_article", "help_feedback", "support_route", "support_ticket",
                 "support_reply", "support_history", "operator_grant", "content_report",
                 "report_handling", "announcement",
@@ -95,9 +96,7 @@ class DiceP12IT {
                 "merge_ballot", "square_merge", "preview_token", "square", "verified_enrollment",
                 "verified_course", "course_name", "period", "term", "operation_receipt", "access_token",
                 "auth_session", "audit_event", "rate_window", "import_batch", "user_role", "user_profile",
-                "app_user", "school")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+                "app_user", "school"));
     }
 
     @Test

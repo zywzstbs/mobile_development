@@ -3,12 +3,14 @@ package cn.gulupai.server.common.idempotency;
 import cn.gulupai.server.common.api.ApiCode;
 import cn.gulupai.server.common.api.ApiException;
 import cn.gulupai.server.common.security.Hashing;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -120,6 +122,86 @@ public class IdempotencyService {
             throw ex;
         } catch (Exception ex) {
             throw new IllegalStateException("无法保存幂等回放结果", ex);
+        }
+    }
+
+    /**
+     * 历史回执先读成 JsonNode，再由调用方按回执版本适配。
+     * 不关闭全局未知字段拒绝，也不在适配前把旧结构硬反序列化成新 DTO。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public <T> T executeHistorical(IdempotencyRequest request,
+                                   Runnable authorizationCheck,
+                                   Supplier<T> action,
+                                   Function<JsonNode, T> replay) {
+        if (request.principal() == null) {
+            throw new ApiException(ApiCode.SESSION_EXPIRED);
+        }
+        String key = request.key();
+        if (key == null || key.isBlank()) {
+            throw new ApiException(ApiCode.IDEMPOTENCY_KEY_REQUIRED);
+        }
+        if (key.length() > 128 || key.chars().anyMatch(ch -> ch < 0x20 || ch > 0x7E)) {
+            throw new ApiException(ApiCode.IDEMPOTENCY_KEY_REQUIRED,
+                    "幂等键必须为1～128个可打印ASCII字符");
+        }
+
+        String bodyHash = canonicalJson.hash(request.body());
+        String scope = request.principal().userId() + "|" + request.method() + "|"
+                + request.path() + "|" + key;
+        Instant now = clock.instant();
+
+        if (!store.tryLock(Hashing.advisoryLockKey(scope))) {
+            throw new ApiException(ApiCode.OPERATION_IN_PROGRESS);
+        }
+
+        var existing = store.find(request.principal().userId(), request.method(), request.path(), key);
+        if (existing.isPresent()) {
+            ReceiptRow receipt = existing.get();
+            if (receipt.expiresAt().isAfter(now)) {
+                if (!receipt.bodyHash().equals(bodyHash)) {
+                    throw new ApiException(ApiCode.IDEMPOTENCY_KEY_REUSED);
+                }
+                authorizationCheck.run();
+                return replay.apply(readTree(receipt.resultCiphertext()));
+            }
+            store.delete(receipt.id());
+        }
+
+        authorizationCheck.run();
+        T result = action.get();
+        if (result == null) {
+            throw new IllegalStateException("幂等动作没有返回结果");
+        }
+        try {
+            String json = objectMapper.writeValueAsString(result);
+            String references = objectMapper.writeValueAsString(request.resourceRefs());
+            store.insert(
+                    java.util.UUID.randomUUID().toString(),
+                    request.principal().userId(),
+                    request.method(),
+                    request.path(),
+                    key,
+                    bodyHash,
+                    200,
+                    ApiCode.OK.name(),
+                    cipher.encrypt(json),
+                    cipher.keyId(),
+                    references,
+                    now.plusSeconds(properties.getRetentionDays() * 24L * 3600L));
+            return result;
+        } catch (ApiException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("无法保存幂等回放结果", ex);
+        }
+    }
+
+    private JsonNode readTree(String ciphertext) {
+        try {
+            return objectMapper.readTree(cipher.decrypt(ciphertext));
+        } catch (Exception ex) {
+            throw new IllegalStateException("无法恢复幂等回放结果", ex);
         }
     }
 

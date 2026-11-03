@@ -1,5 +1,6 @@
 package cn.gulupai.server.support;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.identity.cli.AcademicImportService;
 import cn.gulupai.server.identity.cli.AdminImportService;
@@ -116,13 +117,15 @@ class SupportAdminIT {
         teacher = login("teacher_demo_02", "demo-password-05");
         mockMvc.perform(put("/api/v1/help/articles/help_general_1")
                         .header("Authorization", bearer(student))
+                        .header("Idempotency-Key", "p16-student")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"学生改\",\"body\":\"不行\",\"summary\":\"\"}"))
+                        .content(articleUpdate(1, "学生改", "不行")))
                 .andExpect(status().isForbidden());
         mockMvc.perform(put("/api/v1/help/articles/help_general_1")
                         .header("Authorization", bearer(teacher))
+                        .header("Idempotency-Key", "p16-teacher")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"教师修订\",\"body\":\"按新说明提交\",\"summary\":\"修订\"}"))
+                        .content(articleUpdate(1, "教师修订", "按新说明提交")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("教师修订"));
 
@@ -162,11 +165,20 @@ class SupportAdminIT {
         Path course = temp.resolve("course-help.json");
         Files.writeString(course, """
                 {"articles":[{"id":"help_course_1","audience":"COURSE","squareId":"%s","title":"班内帮助",
-                "summary":"只给本班","body":"课程说明","category":"COURSE","appVersionRange":"1.2.3","published":true}]}
+                "category":"COURSE","roles":[],"appVersionRange":"1.2.3","prerequisites":[],
+                "steps":["课程说明"],"outcomes":[],"failureAction":"只给本班",
+                "entry":{"type":"COURSE","id":null},"published":true}]}
                 """.formatted(SQUARE));
         assertThat(helpImport.importArticles(course, false, "cli").created()).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                 "SELECT square_id FROM help_article WHERE id='help_course_1'", String.class)).isEqualTo(SQUARE);
+    }
+
+    private static String articleUpdate(int revision, String title, String step) {
+        return "{\"expectedRevision\":" + revision + ",\"article\":{\"title\":\"" + title
+                + "\",\"category\":\"GENERAL\",\"roles\":[\"STUDENT\"],\"scope\":\"GENERAL\",\"squareId\":null,"
+                + "\"appVersionRange\":\"1.0.*\",\"prerequisites\":[],\"steps\":[\"" + step + "\"],"
+                + "\"outcomes\":[\"完成\"],\"failureAction\":\"重试\",\"entry\":{\"type\":\"COURSE\",\"id\":null}}}";
     }
 
     private static String SQUARE_USER() {
@@ -197,7 +209,7 @@ class SupportAdminIT {
     }
 
     private void clearAll() {
-        for (String table : List.of("help_article", "help_feedback", "support_history", "support_reply",
+        TestSchemaCleaner.deleteAll(jdbc, List.of("help_article", "help_feedback", "support_history", "support_reply",
                 "support_ticket", "support_route", "operator_grant", "report_handling", "content_report",
                 "announcement_reminder", "announcement_preview", "announcement_receipt",
                 "announcement_recipient", "announcement_version", "announcement",
@@ -223,9 +235,7 @@ class SupportAdminIT {
                 "course_membership", "merge_ballot", "square_merge", "preview_token", "square",
                 "verified_enrollment", "verified_course", "course_name", "period", "term",
                 "operation_receipt", "access_token", "auth_session", "audit_event", "rate_window",
-                "import_batch", "user_role", "user_profile", "app_user", "school")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+                "import_batch", "user_role", "user_profile", "app_user", "school"));
     }
 
     @TestConfiguration

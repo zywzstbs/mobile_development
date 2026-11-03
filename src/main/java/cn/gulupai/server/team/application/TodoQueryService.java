@@ -562,7 +562,7 @@ public class TodoQueryService {
                                WHERE ta.square_id IN (sm.source_square_id, sm.target_square_id)
                                  AND ta.user_id = ? AND ta.active = true) AS teacher
                 FROM square_merge sm
-                WHERE sm.status IN ('VOTING', 'WAIT_TEACHER', 'READY')
+                WHERE sm.status IN ('VOTING', 'WAIT_FACT', 'READY')
                 """, (rs, n) -> new MergeSource(rs.getString("id"), rs.getString("status"),
                 rs.getString("initiator_id"), rs.getString("electorate_json"),
                 rs.getString("source_square_id"), rs.getString("target_square_id"),
@@ -572,7 +572,7 @@ public class TodoQueryService {
             if ("VOTING".equals(row.status()) && electorate && !row.voted()) {
                 items.add(todo("SQUARE_MERGE", "SQUARE_MERGE", row.id(), null, null,
                         "课程广场合并待投票", "ACTION", row.updatedAt(), row.revision(), userId, "BALLOT"));
-            } else if (row.teacher() && "WAIT_TEACHER".equals(row.status())) {
+            } else if (row.teacher() && "WAIT_FACT".equals(row.status())) {
                 items.add(todo("SQUARE_MERGE", "SQUARE_MERGE", row.id(), null, null,
                         "课程广场合并待教师核对", "ACTION", row.updatedAt(), row.revision(), userId,
                         "FACT_CHECK"));

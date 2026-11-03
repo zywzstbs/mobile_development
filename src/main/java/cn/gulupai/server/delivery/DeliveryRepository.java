@@ -21,13 +21,14 @@ public class DeliveryRepository {
     }
 
     public void insertAgreement(String id, String taskId, int version, String status, int baseTaskRevision,
-                                String planJson, String sourceChangeId, Instant at) {
+                                String planJson, String sourceChangeId, String renewalReason, Instant at) {
         jdbc.update("""
                 INSERT INTO agreement
                     (id, task_id, version, status, base_task_revision, plan_json, source_change_id,
-                     revision, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, 1, ?, ?)
-                """, id, taskId, version, status, baseTaskRevision, planJson, sourceChangeId, time(at), time(at));
+                     renewal_reason, revision, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, 1, ?, ?)
+                """, id, taskId, version, status, baseTaskRevision, planJson, sourceChangeId, renewalReason,
+                time(at), time(at));
     }
 
     public Optional<AgreementRow> findAgreement(String id) {
@@ -55,6 +56,12 @@ public class DeliveryRepository {
         return value == null ? 1 : value;
     }
 
+    public int maxAgreementVersion(String taskId) {
+        Integer value = jdbc.queryForObject(
+                "SELECT COALESCE(MAX(version), 0) FROM agreement WHERE task_id = ?", Integer.class, taskId);
+        return value == null ? 0 : value;
+    }
+
     public void supersedeStatus(String taskId, String fromStatus, Instant at) {
         jdbc.update("""
                 UPDATE agreement SET status = 'SUPERSEDED', revision = revision + 1, updated_at = ?
@@ -72,6 +79,14 @@ public class DeliveryRepository {
     public List<AckRow> acks(String agreementId) {
         return jdbc.query("SELECT * FROM agreement_ack WHERE agreement_id = ? ORDER BY at, user_id",
                 ackMapper, agreementId);
+    }
+
+    public List<AckRef> acksIn(List<String> agreementIds) {
+        return queryIn("""
+                SELECT agreement_id, user_id, decision FROM agreement_ack WHERE agreement_id IN (
+                """, ") ORDER BY agreement_id, user_id",
+                (rs, n) -> new AckRef(rs.getString("agreement_id"), rs.getString("user_id"), rs.getString("decision")),
+                agreementIds);
     }
 
     public void upsertAck(String agreementId, String userId, String decision, String comment, Instant at) {
@@ -272,8 +287,9 @@ public class DeliveryRepository {
                                  String decision, String reason, String selfCheckReason, Instant at) {
         jdbc.update("""
                 INSERT INTO acceptance
-                    (id, submission_id, reviewer_id, kind, checks_json, decision, reason, self_check_reason, accepted_at)
-                VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)
+                    (id, submission_id, reviewer_id, kind, checks_json, decision, reason, self_check_reason,
+                     accepted_at, revision)
+                VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, 1)
                 """, id, submissionId, reviewerId, kind, checksJson, decision, reason, selfCheckReason, time(at));
     }
 
@@ -376,6 +392,11 @@ public class DeliveryRepository {
                 responseMapper, proposalId);
     }
 
+    public List<ResponseRow> responsesIn(List<String> proposalIds) {
+        return queryIn("SELECT * FROM proposal_response WHERE proposal_id IN (", ") ORDER BY at, id",
+                responseMapper, proposalIds);
+    }
+
     public Optional<ResponseRow> findResponse(String id) {
         return one("SELECT * FROM proposal_response WHERE id = ?", responseMapper, id);
     }
@@ -394,6 +415,20 @@ public class DeliveryRepository {
 
     public List<ArrangementRow> arrangementsIn(List<String> taskIds) {
         return queryIn("SELECT * FROM reviewer_arrangement WHERE task_id IN (", ")", arrangementMapper, taskIds);
+    }
+
+    public Optional<ProposalRow> findProposal(String id) {
+        return one("SELECT * FROM unit_change_proposal WHERE id = ?", proposalMapper, id);
+    }
+
+    public List<UnitAcceptanceLink> unitAcceptancesIn(List<String> unitIds) {
+        return queryIn("""
+                SELECT unit_id, submission_id, acceptance_id, passed FROM unit_acceptance WHERE unit_id IN (
+                """, ") ORDER BY unit_id, submission_id", unitAcceptanceMapper, unitIds);
+    }
+
+    public List<AcceptanceRow> acceptancesForSubmissions(List<String> submissionIds) {
+        return queryIn("SELECT * FROM acceptance WHERE submission_id IN (", ")", acceptanceMapper, submissionIds);
     }
 
     public List<ContributionRow> contributionsIn(List<String> unitIds) {
@@ -425,7 +460,7 @@ public class DeliveryRepository {
     private final RowMapper<AgreementRow> agreementMapper = (rs, n) -> new AgreementRow(
             rs.getString("id"), rs.getString("task_id"), rs.getInt("version"), rs.getString("status"),
             rs.getInt("base_task_revision"), rs.getString("plan_json"), rs.getString("source_change_id"),
-            rs.getInt("revision"), instant(rs, "created_at"));
+            rs.getString("renewal_reason"), rs.getInt("revision"), instant(rs, "created_at"));
 
     private final RowMapper<AckRow> ackMapper = (rs, n) -> new AckRow(
             rs.getString("user_id"), rs.getString("decision"), rs.getString("comment"), instant(rs, "at"));
@@ -465,7 +500,11 @@ public class DeliveryRepository {
     private final RowMapper<AcceptanceRow> acceptanceMapper = (rs, n) -> new AcceptanceRow(
             rs.getString("id"), rs.getString("submission_id"), rs.getString("reviewer_id"), rs.getString("kind"),
             rs.getString("checks_json"), rs.getString("decision"), rs.getString("reason"),
-            rs.getString("self_check_reason"), instant(rs, "accepted_at"));
+            rs.getString("self_check_reason"), instant(rs, "accepted_at"), rs.getInt("revision"));
+
+    private final RowMapper<UnitAcceptanceLink> unitAcceptanceMapper = (rs, n) -> new UnitAcceptanceLink(
+            rs.getString("unit_id"), rs.getString("submission_id"), rs.getString("acceptance_id"),
+            rs.getBoolean("passed"));
 
     private final RowMapper<ContributionRow> contributionMapper = (rs, n) -> new ContributionRow(
             rs.getString("id"), rs.getString("unit_id"), rs.getString("user_id"), rs.getString("acceptance_id"),
@@ -481,10 +520,17 @@ public class DeliveryRepository {
             rs.getString("decision"), rs.getString("comment"), rs.getString("proposal_text"), instant(rs, "at"));
 
     public record AgreementRow(String id, String taskId, int version, String status, int baseTaskRevision,
-                               String planJson, String sourceChangeId, int revision, Instant createdAt) {
+                               String planJson, String sourceChangeId, String renewalReason, int revision,
+                               Instant createdAt) {
+    }
+
+    public record UnitAcceptanceLink(String unitId, String submissionId, String acceptanceId, boolean passed) {
     }
 
     public record AckRow(String userId, String decision, String comment, Instant at) {
+    }
+
+    public record AckRef(String agreementId, String userId, String decision) {
     }
 
     public record UnitRow(String id, String taskId, String clientKey, String title, Instant dueAt,
@@ -513,7 +559,8 @@ public class DeliveryRepository {
     }
 
     public record AcceptanceRow(String id, String submissionId, String reviewerId, String kind, String checksJson,
-                                String decision, String reason, String selfCheckReason, Instant acceptedAt) {
+                                String decision, String reason, String selfCheckReason, Instant acceptedAt,
+                                int revision) {
     }
 
     public record ContributionRow(String id, String unitId, String userId, String acceptanceId, String submissionId,

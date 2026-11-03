@@ -167,14 +167,14 @@ public class GovService {
         VoteRow vote = governance.lockVote(id).orElseThrow(ApiException::notFound);
         settle(vote);
         requireReader(principal, teams.findProject(vote.projectId()).orElseThrow());
-        return voteView(governance.lockVote(id).orElseThrow());
+        return voteView(governance.lockVote(id).orElseThrow(), principal.userId());
     }
 
     public List<GovViews.Vote> votes(AuthenticatedUser principal, String projectId) {
         readableProject(principal, projectId);
         return governance.votes(projectId).stream().map(vote -> {
             settle(vote);
-            return voteView(governance.lockVote(vote.id()).orElseThrow());
+            return voteView(governance.lockVote(vote.id()).orElseThrow(), principal.userId());
         }).toList();
     }
 
@@ -715,7 +715,7 @@ public class GovService {
         } catch (DataIntegrityViolationException ex) {
             throw ApiException.validation("该成员已有未结束的移出表决");
         }
-        return voteView(governance.lockVote(id).orElseThrow());
+        return voteView(governance.lockVote(id).orElseThrow(), principal.userId());
     }
 
     private GovViews.Vote statementOnce(AuthenticatedUser principal, String voteId, GovRequests.Statement request) {
@@ -734,7 +734,7 @@ public class GovService {
                 vote.votingEndsAt(), vote.electorateJson(), vote.decisionJson(), vote.memberChangeId(),
                 vote.revision(), vote.createdAt());
         governance.updateVote(next, clock.instant());
-        return voteView(governance.lockVote(voteId).orElseThrow());
+        return voteView(governance.lockVote(voteId).orElseThrow(), principal.userId());
     }
 
     private GovViews.Vote ballotOnce(AuthenticatedUser principal, String voteId, GovRequests.Ballot request) {
@@ -768,7 +768,7 @@ public class GovService {
             }
         }
         settle(governance.lockVote(voteId).orElseThrow());
-        return voteView(governance.lockVote(voteId).orElseThrow());
+        return voteView(governance.lockVote(voteId).orElseThrow(), principal.userId());
     }
 
     private GovViews.Vote cancelVoteOnce(AuthenticatedUser principal, String voteId, GovRequests.RevisionReason request) {
@@ -786,7 +786,7 @@ public class GovService {
                 vote.facts(), vote.communication(), vote.statement(), vote.statementEndsAt(), vote.votingEndsAt(),
                 vote.electorateJson(), vote.decisionJson(), vote.memberChangeId(), vote.revision(), vote.createdAt());
         governance.updateVote(next, clock.instant());
-        return voteView(governance.lockVote(voteId).orElseThrow());
+        return voteView(governance.lockVote(voteId).orElseThrow(), principal.userId());
     }
 
     private GovViews.Vote decideVoteOnce(AuthenticatedUser principal, String voteId, GovRequests.PersonnelDecision request) {
@@ -822,7 +822,7 @@ public class GovService {
         if (governance.updateVote(next, clock.instant()) != 1) {
             throw new ApiException(ApiCode.RESOURCE_CHANGED);
         }
-        return voteView(governance.lockVote(voteId).orElseThrow());
+        return voteView(governance.lockVote(voteId).orElseThrow(), principal.userId());
     }
 
     private void settle(VoteRow vote) {
@@ -1260,14 +1260,24 @@ public class GovService {
                 && "ACCEPT".equals(ack.decision()));
     }
 
-    private GovViews.Vote voteView(VoteRow vote) {
+    private GovViews.Vote voteView(VoteRow vote, String viewerId) {
         List<GovRepository.BallotRow> ballots = governance.ballots(vote.id());
+        int eligible = read(vote.electorateJson(), STRINGS).size();
+        int agree = (int) ballots.stream().filter(row -> "AGREE".equals(row.decision())).count();
+        int disagree = (int) ballots.stream().filter(row -> "DISAGREE".equals(row.decision())).count();
+        int abstain = (int) ballots.stream().filter(row -> "ABSTAIN".equals(row.decision())).count();
+        GovRepository.BallotRow mine = ballots.stream().filter(row -> viewerId.equals(row.userId()))
+                .findFirst().orElse(null);
+        String result = switch (vote.status()) {
+            case "PASSED" -> "PASSED";
+            case "FAILED" -> "NOT_PASSED";
+            default -> null;
+        };
         return new GovViews.Vote(vote.id(), vote.projectId(), vote.targetUserId(), vote.status(), vote.facts(),
-                vote.statement(), vote.statementEndsAt(), vote.votingEndsAt(), read(vote.electorateJson(), STRINGS),
-                (int) ballots.stream().filter(row -> "AGREE".equals(row.decision())).count(),
-                (int) ballots.stream().filter(row -> "DISAGREE".equals(row.decision())).count(),
-                (int) ballots.stream().filter(row -> "ABSTAIN".equals(row.decision())).count(),
-                vote.revision(), vote.memberChangeId());
+                vote.statement(), vote.statementEndsAt(), vote.votingEndsAt(), eligible, agree, disagree, abstain,
+                Math.max(0, eligible - agree - disagree - abstain),
+                mine == null ? null : new GovViews.MyBallot(mine.decision(), mine.revision()),
+                result, vote.revision(), vote.memberChangeId());
     }
 
     private GovViews.CaseView caseView(CaseRow row, AuthenticatedUser principal, boolean list) {

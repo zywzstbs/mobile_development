@@ -1,5 +1,6 @@
 package cn.gulupai.server.governance;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.identity.cli.AcademicImportService;
 import cn.gulupai.server.identity.cli.AdminImportService;
@@ -1035,7 +1036,7 @@ class GovT01T06IT {
     }
 
     private void clearAll() {
-        for (String table : List.of(
+        TestSchemaCleaner.deleteAll(jdbc, List.of(
                 "material_review", "material_response",
                 "personnel_handoff", "material_request", "personnel_record", "personnel_case_grant", "personnel_case",
                 "removal_ballot", "handover_ack", "handover_item", "member_change_event",
@@ -1061,9 +1062,7 @@ class GovT01T06IT {
                 "merge_ballot", "square_merge", "preview_token", "square", "verified_enrollment",
                 "verified_course", "course_name", "period", "term", "operation_receipt", "access_token",
                 "auth_session", "audit_event", "rate_window", "import_batch", "user_role", "user_profile",
-                "app_user", "school")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+                "app_user", "school"));
     }
 
     private record Project(String id, String stageId) {

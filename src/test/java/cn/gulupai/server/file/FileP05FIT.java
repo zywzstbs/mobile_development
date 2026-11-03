@@ -1,5 +1,6 @@
 package cn.gulupai.server.file;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.identity.cli.AcademicImportService;
 import cn.gulupai.server.identity.cli.AdminImportService;
@@ -90,7 +91,7 @@ class FileP05FIT {
     }
 
     private void clearAll() {
-        for (String table : List.of("file_reference", "file_authorization", "cleanup_plan", "stored_file",
+        TestSchemaCleaner.deleteAll(jdbcTemplate, List.of("file_reference", "file_authorization", "cleanup_plan", "stored_file",
                 "personnel_handoff", "material_request", "personnel_record", "personnel_case_grant", "personnel_case",
                 "removal_ballot", "handover_ack", "handover_item", "member_change_event",
                 "member_change", "removal_vote",
@@ -113,9 +114,7 @@ class FileP05FIT {
                 "course_join_request", "cursor_snapshot", "assignment", "course_membership", "preview_token",
                 "square", "verified_enrollment", "verified_course", "course_name", "period", "term",
                 "operation_receipt", "access_token", "auth_session", "audit_event", "rate_window",
-                "import_batch", "user_role", "user_profile", "app_user", "school")) {
-            jdbcTemplate.update("DELETE FROM " + table);
-        }
+                "import_batch", "user_role", "user_profile", "app_user", "school"));
     }
 
     @Test

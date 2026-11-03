@@ -27,7 +27,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 @Service
 public class NoticeService {
@@ -62,6 +64,7 @@ public class NoticeService {
         policy.requireActiveBusinessUser(principal);
         requireReader(squareId, principal.userId());
         return repo.announcements(squareId).stream()
+                .filter(row -> visible(row, principal.userId()))
                 .map(row -> view(row, principal.userId())).toList();
     }
 
@@ -75,7 +78,9 @@ public class NoticeService {
                 () -> {
                     Payload payload;
                     if (request.previewToken() != null && !request.previewToken().isBlank()) {
-                        payload = consumePreview(squareId, principal.userId(), request.previewToken());
+                        payload = consumeAnnouncementPreview(squareId, principal.userId(), request.previewToken(),
+                                request.publisherRole(), candidate ->
+                                        requireSameText(candidate, request.title(), request.content()));
                     } else {
                         payload = new Payload(request.title().strip(), request.content().strip(),
                                 "OTHER", "NORMAL", false, null, null, null, null, List.of());
@@ -89,13 +94,21 @@ public class NoticeService {
     public NoticeViews.Preview preview(AuthenticatedUser principal, String squareId,
                                        NoticeRequests.Preview request, String key, String path) {
         policy.requireActiveBusinessUser(principal);
-        String role = requirePublisher(squareId, principal.userId(), request.publisherRole());
+        requirePublisher(squareId, principal.userId(), request.publisherRole());
         return idempotency.execute(req(principal, "POST", path, key, request),
                 NoticeViews.Preview.class,
                 () -> policy.requireActiveBusinessUser(principal),
                 () -> {
-                    int count = repo.courseAudience(squareId).size();
+                    String role = requirePublisher(squareId, principal.userId(), request.publisherRole());
+                    SquareRow square = squares.findById(squareId).orElseThrow(ApiException::notFound);
+                    if (square.revision() != request.expectedRevision()) {
+                        throw new ApiException(ApiCode.RESOURCE_CHANGED);
+                    }
+                    int count = audience(squareId, request.assignmentId()).size();
                     ObjectNode payload = mapper.createObjectNode();
+                    payload.put("action", "ANNOUNCEMENT");
+                    payload.put("sourceKind", "COURSE");
+                    payload.put("sourceRevision", square.revision());
                     payload.put("title", request.title().strip());
                     payload.put("content", request.content().strip());
                     payload.put("category", request.category());
@@ -122,7 +135,9 @@ public class NoticeService {
     public NoticeViews.Announcement announcement(AuthenticatedUser principal, String id) {
         policy.requireActiveBusinessUser(principal);
         NoticeRepository.AnnouncementRow row = requireAnnouncement(id);
-        requireReader(row.squareId(), principal.userId());
+        if (!visible(row, principal.userId())) {
+            throw new ApiException(ApiCode.FORBIDDEN);
+        }
         return view(row, principal.userId());
     }
 
@@ -136,14 +151,17 @@ public class NoticeService {
                 () -> policy.requireActiveBusinessUser(principal),
                 () -> {
                     NoticeRepository.AnnouncementRow locked = repo.lockAnnouncement(id).orElseThrow();
+                    requireManager(locked, principal.userId());
                     if (locked.revision() != request.expectedRevision()) {
                         throw new ApiException(ApiCode.RESOURCE_CHANGED);
                     }
                     boolean substantive = "SUBSTANTIVE".equals(request.changeKind());
-                    String oldNorm = normalize(locked.content());
-                    String newNorm = normalize(request.content());
-                    if (!substantive && !oldNorm.equals(newNorm)) {
-                        throw ApiException.validation("FORMAT_ONLY 不能修改正文语义");
+                    if (!substantive && request.previewToken() != null && !request.previewToken().isBlank()) {
+                        throw ApiException.validation("FORMAT_ONLY 不能携带预览或改变范围");
+                    }
+                    if (!substantive && (!normalize(locked.title()).equals(normalize(request.title()))
+                            || !normalize(locked.content()).equals(normalize(request.content())))) {
+                        throw ApiException.validation("FORMAT_ONLY 只接受标题和正文的边界空白或换行规范化");
                     }
                     Instant now = clock.instant();
                     int contentVersion = locked.contentVersion();
@@ -161,7 +179,17 @@ public class NoticeService {
                     if (substantive) {
                         Payload payload;
                         if (request.previewToken() != null && !request.previewToken().isBlank()) {
-                            payload = consumePreview(locked.squareId(), principal.userId(), request.previewToken());
+                            payload = consumeAnnouncementPreview(locked.squareId(), principal.userId(),
+                                    request.previewToken(), null, candidate -> {
+                                        requireSameText(candidate, request.title(), request.content());
+                                        if (!candidate.publisherRole().equals(locked.publisherRole())
+                                                || !candidate.category().equals(locked.category())
+                                                || !candidate.importance().equals(locked.importance())
+                                                || !Objects.equals(candidate.expires(), locked.expires())) {
+                                            throw new ApiException(ApiCode.PREVIEW_STALE,
+                                                    "预览固定的身份、类别、重要程度或失效时间与当前通知不一致");
+                                        }
+                                    });
                             category = payload.category();
                             importance = payload.importance();
                             requires = payload.requiresAck();
@@ -174,7 +202,7 @@ public class NoticeService {
                                     role, List.of());
                         }
                         contentVersion++;
-                        recipients = repo.courseAudience(locked.squareId());
+                        recipients = audience(locked.squareId(), assignmentId);
                         snapshot = UUID.randomUUID().toString();
                         recipientCount = recipients.size();
                         repo.insertRecipients(snapshot, id, contentVersion, recipients);
@@ -186,6 +214,7 @@ public class NoticeService {
                     if (repo.updateAnnouncement(id, request.expectedRevision(), request.title().strip(),
                             request.content().strip(), contentVersion, displayRevision, snapshot,
                             recipientCount, request.changeSummary(), requires, ackDue, expires,
+                            assignmentId, category, importance,
                             request.expectedRevision() + 1, now) != 1) {
                         throw new ApiException(ApiCode.RESOURCE_CHANGED);
                     }
@@ -274,17 +303,23 @@ public class NoticeService {
                 NoticeViews.ReminderPreview.class,
                 () -> policy.requireActiveBusinessUser(principal),
                 () -> {
-                    if (row.revision() != request.expectedRevision()
-                            || row.contentVersion() != request.contentVersion()) {
+                    NoticeRepository.AnnouncementRow locked = repo.lockAnnouncement(id).orElseThrow();
+                    requireManager(locked, principal.userId());
+                    if (locked.revision() != request.expectedRevision()
+                            || locked.contentVersion() != request.contentVersion()) {
                         throw new ApiException(ApiCode.RESOURCE_CHANGED);
                     }
                     List<String> targets = repo.unconfirmedRecipients(id, request.contentVersion(), true);
                     String token = Hashing.newToken();
                     Instant now = clock.instant();
                     Instant expires = now.plus(PREVIEW_TTL);
-                    repo.insertPreview(UUID.randomUUID().toString(), row.squareId(), principal.userId(),
-                            Hashing.sha256Hex(token), write(Map.of("kind", "REMINDER",
-                                    "announcementId", id, "contentVersion", request.contentVersion())),
+                    repo.insertPreview(UUID.randomUUID().toString(), locked.squareId(), principal.userId(),
+                            Hashing.sha256Hex(token), write(Map.of(
+                                    "action", "REMINDER",
+                                    "sourceKind", "ANNOUNCEMENT",
+                                    "sourceRevision", locked.revision(),
+                                    "announcementId", id,
+                                    "contentVersion", request.contentVersion())),
                             expires, now);
                     return new NoticeViews.ReminderPreview(token, expires, targets.size());
                 });
@@ -299,23 +334,34 @@ public class NoticeService {
                 NoticeViews.Reminder.class,
                 () -> policy.requireActiveBusinessUser(principal),
                 () -> {
-                    NoticeRepository.PreviewRow preview = repo.preview(Hashing.sha256Hex(request.previewToken()))
+                    NoticeRepository.AnnouncementRow locked = repo.lockAnnouncement(id).orElseThrow();
+                    requireManager(locked, principal.userId());
+                    NoticeRepository.PreviewRow preview = repo.lockPreview(Hashing.sha256Hex(request.previewToken()))
                             .orElseThrow(() -> new ApiException(ApiCode.RESOURCE_CHANGED));
-                    if (!preview.createdBy().equals(principal.userId())
-                            || preview.usedAt() != null || !preview.expiresAt().isAfter(clock.instant())) {
+                    JsonNode stored = parse(preview.payload());
+                    if (!preview.squareId().equals(locked.squareId()) || !preview.createdBy().equals(principal.userId())
+                            || preview.usedAt() != null || !preview.expiresAt().isAfter(clock.instant())
+                            || !"REMINDER".equals(stored.path("action").asText())
+                            || !id.equals(stored.path("announcementId").asText())) {
                         throw new ApiException(ApiCode.RESOURCE_CHANGED);
                     }
-                    if (request.contentVersion() != row.contentVersion()
+                    if (!stored.has("sourceRevision") || stored.path("sourceRevision").asInt() != locked.revision()
+                            || stored.path("contentVersion").asInt() != request.contentVersion()) {
+                        throw new ApiException(ApiCode.PREVIEW_STALE, "催阅预览对应的通知版本已变化，请重新预览");
+                    }
+                    if (request.contentVersion() != locked.contentVersion()
                             || repo.remindedWithin24h(id, request.contentVersion(), clock.instant())) {
                         throw new ApiException(ApiCode.RESOURCE_CHANGED, "24小时内已催阅或正文版本不符");
+                    }
+                    if (repo.usePreview(preview.id(), clock.instant()) != 1) {
+                        throw new ApiException(ApiCode.RESOURCE_CHANGED);
                     }
                     List<String> targets = repo.unconfirmedRecipients(id, request.contentVersion(), true);
                     repo.insertReminder(UUID.randomUUID().toString(), id, request.contentVersion(),
                             principal.userId(), targets.size(), clock.instant());
-                    repo.usePreview(preview.id(), clock.instant());
                     for (String user : targets) {
                         repo.insertNotification(UUID.randomUUID().toString(), user, "ANNOUNCEMENT",
-                                id, "COURSE_NOTICE", row.title(), "请尽快确认公告", request.contentVersion(),
+                                id, "COURSE_NOTICE", locked.title(), "请尽快确认公告", request.contentVersion(),
                                 clock.instant());
                     }
                     return new NoticeViews.Reminder(id, request.contentVersion(), targets.size());
@@ -365,7 +411,7 @@ public class NoticeService {
                                              String role, Payload payload, int contentVersion,
                                              int displayRevision, Instant ignored) {
         Instant now = clock.instant();
-        List<String> audience = repo.courseAudience(squareId);
+        List<String> audience = audience(squareId, payload.assignmentId());
         String snapshot = UUID.randomUUID().toString();
         repo.insertAnnouncement(id, squareId, payload.assignmentId(), principal.userId(), role,
                 payload.title(), payload.content(), payload.category(), payload.importance(),
@@ -444,24 +490,77 @@ public class NoticeService {
         return repo.announcement(id).orElseThrow(ApiException::notFound);
     }
 
-    private Payload consumePreview(String squareId, String userId, String token) {
-        NoticeRepository.PreviewRow preview = repo.preview(Hashing.sha256Hex(token))
+    private Payload consumeAnnouncementPreview(String squareId, String userId, String token,
+                                                String requestedRole, Consumer<Payload> check) {
+        NoticeRepository.PreviewRow preview = repo.lockPreview(Hashing.sha256Hex(token))
                 .orElseThrow(() -> new ApiException(ApiCode.RESOURCE_CHANGED));
         if (!preview.squareId().equals(squareId) || !preview.createdBy().equals(userId)
                 || preview.usedAt() != null || !preview.expiresAt().isAfter(clock.instant())) {
             throw new ApiException(ApiCode.RESOURCE_CHANGED);
         }
-        repo.usePreview(preview.id(), clock.instant());
         JsonNode p = parse(preview.payload());
-        return new Payload(p.path("title").asText(), p.path("content").asText(),
-                p.path("category").asText("OTHER"), p.path("importance").asText("NORMAL"),
+        if (!"ANNOUNCEMENT".equals(p.path("action").asText()) || !p.has("sourceRevision")) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
+        SquareRow square = squares.findById(squareId).orElseThrow(ApiException::notFound);
+        if (p.path("sourceRevision").asInt() != square.revision()) {
+            throw new ApiException(ApiCode.PREVIEW_STALE, "预览时的课程版本已变化，请重新预览");
+        }
+        Payload payload = new Payload(p.path("title").asText(), p.path("content").asText(),
+                p.path("category").asText(), p.path("importance").asText(),
                 p.path("requiresAcknowledgement").asBoolean(false), instant(p, "acknowledgeDueAt"),
                 instant(p, "expiresAt"), p.path("assignmentId").isNull() ? null : p.path("assignmentId").asText(),
-                p.path("publisherRole").asText("TEACHER"), List.of());
+                p.path("publisherRole").asText(), refs(p.path("refs")));
+        if (requestedRole != null && !requestedRole.equals(payload.publisherRole())) {
+            throw new ApiException(ApiCode.PREVIEW_STALE, "预览的发布身份与提交不一致");
+        }
+        if (check != null) {
+            check.accept(payload);
+        }
+        if (repo.usePreview(preview.id(), clock.instant()) != 1) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
+        return payload;
+    }
+
+    private List<Object> refs(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<Object> values = new ArrayList<>();
+        node.forEach(item -> values.add(mapper.convertValue(item, Map.class)));
+        return values;
     }
 
     private Instant instant(JsonNode node, String field) {
         return node.hasNonNull(field) ? Instant.parse(node.path(field).asText()) : null;
+    }
+
+    private List<String> audience(String squareId, String assignmentId) {
+        if (assignmentId == null || assignmentId.isBlank()) {
+            return repo.courseAudience(squareId);
+        }
+        if (!repo.assignmentInSquare(assignmentId, squareId)) {
+            throw ApiException.validation("作业不属于该课程");
+        }
+        return repo.assignmentAudience(squareId, assignmentId);
+    }
+
+    private boolean visible(NoticeRepository.AnnouncementRow row, String userId) {
+        if (!repo.courseReader(row.squareId(), userId)) {
+            return false;
+        }
+        if (row.assignmentId() == null || row.assignmentId().isBlank()) {
+            return true;
+        }
+        return repo.assignmentAudience(row.squareId(), row.assignmentId()).contains(userId);
+    }
+
+    private void requireSameText(Payload payload, String title, String content) {
+        if (!normalize(payload.title()).equals(normalize(title))
+                || !normalize(payload.content()).equals(normalize(content))) {
+            throw new ApiException(ApiCode.PREVIEW_STALE, "预览与提交的标题或正文不一致");
+        }
     }
 
     private String normalize(String text) {

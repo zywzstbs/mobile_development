@@ -17,7 +17,9 @@ import cn.gulupai.server.delivery.DeliveryRepository.InvitationRow;
 import cn.gulupai.server.delivery.DeliveryRepository.ProposalRow;
 import cn.gulupai.server.delivery.DeliveryRepository.ResponseRow;
 import cn.gulupai.server.delivery.DeliveryRepository.ShareRow;
+import cn.gulupai.server.delivery.DeliveryRepository.ContributionRow;
 import cn.gulupai.server.delivery.DeliveryRepository.SubmissionRow;
+import cn.gulupai.server.delivery.DeliveryRepository.UnitAcceptanceLink;
 import cn.gulupai.server.delivery.DeliveryRepository.UnitRow;
 import cn.gulupai.server.file.FileService;
 import cn.gulupai.server.governance.GovRepository;
@@ -34,16 +36,20 @@ import cn.gulupai.server.team.persistence.ProjectRow;
 import cn.gulupai.server.team.persistence.TeamRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -124,13 +130,13 @@ public class DeliveryService {
             List<StoredShare> shares = writeShares(unitId, 1, unit.shares(), false);
             List<StoredCriterion> criteria = writeCriteria(taskId, unitId, position, unit.criteria());
             storedUnits.add(new StoredUnit(unitId, unit.clientKey(), unit.title(), ShareLedger.text(unit.points()),
-                    shares, criteria));
+                    shares, criteria, plan.dueAt().toString(), 1));
             position++;
         }
         String agreementId = UUID.randomUUID().toString();
         deliveries.insertAgreement(agreementId, taskId, 1, "PENDING", 1,
                 write(new StoredPlan(plan.ownerId(), plan.dueAt().toString(), storedUnits,
-                        new StoredPolicy(plan.reviewerUserId(), kind))), null, now);
+                        new StoredPolicy(plan.reviewerUserId(), kind))), null, null, now);
         deliveries.insertArrangement(taskId, plan.reviewerUserId(), kind,
                 "SELF_CHECK".equals(kind) ? "ACCEPTED" : "PENDING", 1);
         audit.record(leaderId, "AGREEMENT_CREATE", "AGREEMENT", agreementId, null, 1, null);
@@ -187,6 +193,7 @@ public class DeliveryService {
         return deliveries.units(task.id()).stream().anyMatch(unit -> deliveries.hasSignedShare(unit.id(), userId));
     }
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public DeliveryViews.AgreementView agreement(AuthenticatedUser principal, String agreementId) {
         policy.requireStudent(principal);
         AgreementRow agreement = deliveries.findAgreement(agreementId).orElseThrow(ApiException::notFound);
@@ -198,7 +205,7 @@ public class DeliveryService {
                                               DeliveryRequests.AgreementResponseRequest request,
                                               String idempotencyKey, String path) {
         policy.requireStudent(principal);
-        return write(principal, "POST", path, idempotencyKey, request, DeliveryViews.AgreementView.class,
+        return writeAgreement(principal, path, idempotencyKey, request,
                 () -> respondOnce(principal, agreementId, request));
     }
 
@@ -206,7 +213,7 @@ public class DeliveryService {
                                                        DeliveryRequests.AgreementCreateRequest request,
                                                        String idempotencyKey, String path) {
         policy.requireStudent(principal);
-        return write(principal, "POST", path, idempotencyKey, request, DeliveryViews.AgreementView.class,
+        return writeAgreement(principal, path, idempotencyKey, request,
                 () -> replaceOnce(principal, taskId, request));
     }
 
@@ -270,7 +277,7 @@ public class DeliveryService {
                                             DeliveryRequests.RenewalRequest request,
                                             String idempotencyKey, String path) {
         policy.requireStudent(principal);
-        return write(principal, "POST", path, idempotencyKey, request, DeliveryViews.AgreementView.class,
+        return writeAgreement(principal, path, idempotencyKey, request,
                 () -> renewOnce(principal, taskId, request));
     }
 
@@ -413,11 +420,17 @@ public class DeliveryService {
                 throw ApiException.validation("已通过或已确认的交付项必须原样保留");
             }
             String unitId = prior == null ? UUID.randomUUID().toString() : prior.id();
+            String due = plan.dueAt().toString();
+            int unitRevision = 1;
             if (prior == null) {
                 deliveries.insertUnit(unitId, taskId, unit.clientKey(), unit.title(), plan.dueAt(), unit.points(),
                         position, now);
             } else if (!protectedUnit) {
                 deliveries.updateUnit(prior.id(), prior.revision(), unit.title(), plan.dueAt(), unit.points());
+                unitRevision = prior.revision() + 1;
+            } else {
+                due = prior.dueAt().toString();
+                unitRevision = prior.revision();
             }
             List<StoredShare> shares = protectedUnit
                     ? writeSharesFromRows(unitId, version, deliveries.shares(unitId, versionOf(prior)), false)
@@ -426,7 +439,7 @@ public class DeliveryService {
                     ? storedCriteria(tasks.criteria(taskId), unitId)
                     : replaceCriteria(taskId, unitId, prior == null ? position : prior.position(), unit.criteria());
             storedUnits.add(new StoredUnit(unitId, unit.clientKey(), unit.title(), ShareLedger.text(unit.points()),
-                    shares, criteria));
+                    shares, criteria, due, unitRevision));
             position++;
         }
         deliveries.supersedeStatus(taskId, "PENDING", now);
@@ -434,7 +447,7 @@ public class DeliveryService {
         String agreementId = UUID.randomUUID().toString();
         deliveries.insertAgreement(agreementId, taskId, version, "PENDING", task.revision(),
                 write(new StoredPlan(plan.ownerId(), plan.dueAt().toString(), storedUnits,
-                        new StoredPolicy(plan.reviewerUserId(), kind))), null, now);
+                        new StoredPolicy(plan.reviewerUserId(), kind))), null, null, now);
         deliveries.updateArrangement(taskId, plan.reviewerUserId(), kind,
                 "SELF_CHECK".equals(kind) ? "ACCEPTED" : "PENDING", version);
         return agreementView(deliveries.findAgreement(agreementId).orElseThrow());
@@ -579,10 +592,13 @@ public class DeliveryService {
             if (owned.ownerId().equals(handover.departingUserId())) {
                 teams.setOwner(owned.id(), handover.recipientId());
             }
+            String renewalReason = request.reason() == null ? "" : request.reason().strip();
             return new DeliveryViews.AgreementView(handover.changeId(), task.id(), 0, "ACTIVE",
-                    new DeliveryViews.PlanView(handover.recipientId(), task.dueAt(), List.of(),
-                            new DeliveryViews.PolicyView("", "INDEPENDENT")),
-                    List.of(), task.revision(), clock.instant());
+                    handover.recipientId(), task.dueAt(), List.of(),
+                    new DeliveryViews.PolicyView("", "INDEPENDENT", null),
+                    List.of(), "0", name(handover.recipientId()), true,
+                    List.of(), task.revision(), clock.instant(),
+                    handover.changeId(), renewalReason, false);
         }
         AgreementRow active = deliveries.activeAgreement(task.id()).orElseThrow(
                 () -> new ApiException(ApiCode.AGREEMENT_REQUIRED));
@@ -594,7 +610,8 @@ public class DeliveryService {
             List<StoredShare> shares = row.passed()
                     ? writeSharesFromRows(unit.id(), version, deliveries.shares(unit.id(), active.version()), false)
                     : rewriteDepartingShare(unit, handover.departingUserId(), handover.recipientId(), version);
-            units.add(new StoredUnit(unit.id(), unit.clientKey(), unit.title(), unit.points(), shares, unit.criteria()));
+            units.add(new StoredUnit(unit.id(), unit.clientKey(), unit.title(), unit.points(), shares, unit.criteria(),
+                    row.dueAt().toString(), row.revision()));
         }
         Instant now = clock.instant();
         deliveries.supersedeStatus(task.id(), "PENDING", now);
@@ -602,8 +619,10 @@ public class DeliveryService {
         String agreementId = UUID.randomUUID().toString();
         String ownerId = plan.ownerId().equals(handover.departingUserId())
                 ? handover.recipientId() : plan.ownerId();
+        String renewalReason = request.reason() == null ? "" : request.reason().strip();
         deliveries.insertAgreement(agreementId, task.id(), version, "PENDING", task.revision(),
-                write(new StoredPlan(ownerId, plan.dueAt(), units, plan.reviewerPolicy())), handover.changeId(), now);
+                write(new StoredPlan(ownerId, plan.dueAt(), units, plan.reviewerPolicy())), handover.changeId(),
+                renewalReason, now);
         return agreementView(deliveries.findAgreement(agreementId).orElseThrow());
     }
 
@@ -909,20 +928,28 @@ public class DeliveryService {
                     : replaceCriteriaFromMaps(task.id(), unit, fields.get("criteria"));
             for (int i = 0; i < units.size(); i++) {
                 if (units.get(i).id().equals(unitId)) {
-                    units.set(i, new StoredUnit(unitId, unit.clientKey(), title, ShareLedger.text(points), shares, criteria));
+                    units.set(i, new StoredUnit(unitId, unit.clientKey(), title, ShareLedger.text(points), shares,
+                            criteria, dueAt.toString(), unit.revision() + 1));
                 }
             }
         }
-        for (StoredUnit unit : units) {
+        for (int i = 0; i < units.size(); i++) {
+            StoredUnit unit = units.get(i);
             boolean changed = changes.stream().anyMatch(change -> unit.id().equals(change.get("unitId")));
             if (!changed) {
                 writeSharesFromRows(unit.id(), version, deliveries.shares(unit.id(), active.version()));
+                UnitRow row = deliveries.lockUnit(unit.id()).orElseThrow();
+                String due = unit.dueAt() != null ? unit.dueAt() : row.dueAt().toString();
+                int unitRevision = unit.revision() != null ? unit.revision() : row.revision();
+                units.set(i, new StoredUnit(unit.id(), unit.clientKey(), unit.title(), unit.points(), unit.shares(),
+                        unit.criteria(), due, unitRevision));
             }
         }
         deliveries.supersedeStatus(task.id(), "ACTIVE", now);
         String agreementId = UUID.randomUUID().toString();
         deliveries.insertAgreement(agreementId, task.id(), version, "ACTIVE", task.revision(),
-                write(new StoredPlan(plan.ownerId(), plan.dueAt(), units, plan.reviewerPolicy())), proposal.id(), now);
+                write(new StoredPlan(plan.ownerId(), plan.dueAt(), units, plan.reviewerPolicy())), proposal.id(),
+                null, now);
         deliveries.signShares(task.id(), version);
         if (tasks.bindAgreement(task.id(), task.revision(), version, now) != 1) {
             throw new ApiException(ApiCode.RESOURCE_CHANGED);
@@ -1201,18 +1228,295 @@ public class DeliveryService {
 
     private DeliveryViews.AgreementView agreementView(AgreementRow agreement) {
         StoredPlan plan = readPlan(agreement.planJson());
-        List<DeliveryViews.PlanUnitView> units = plan.units().stream().map(unit -> new DeliveryViews.PlanUnitView(
-                unit.id(), unit.clientKey(), unit.title(), unit.points(),
-                unit.shares().stream().map(share -> new DeliveryViews.PlanShareView(
-                        share.userId(), share.points(), share.responsibility())).toList(),
-                unit.criteria().stream().map(criterion -> new DeliveryViews.PlanCriterionView(
-                        criterion.id(), criterion.text())).toList())).toList();
+        List<String> unitIds = new ArrayList<>();
+        Set<String> nameIds = new LinkedHashSet<>();
+        if (plan.ownerId() != null) {
+            nameIds.add(plan.ownerId());
+        }
+        if (plan.reviewerPolicy() != null && plan.reviewerPolicy().userId() != null
+                && !plan.reviewerPolicy().userId().isBlank()) {
+            nameIds.add(plan.reviewerPolicy().userId());
+        }
+        for (StoredUnit unit : plan.units()) {
+            if (unit.id() != null) {
+                unitIds.add(unit.id());
+            }
+            for (StoredShare share : unit.shares()) {
+                nameIds.add(share.userId());
+            }
+        }
+        Map<String, UnitRow> unitRows = new HashMap<>();
+        for (UnitRow row : deliveries.units(agreement.taskId())) {
+            unitRows.put(row.id(), row);
+        }
+        List<SubmissionRow> submissions = deliveries.submissions(agreement.taskId());
+        Map<String, List<String>> submissionUnits = new HashMap<>();
+        List<String> submissionIds = new ArrayList<>();
+        Map<String, SubmissionRow> submissionById = new HashMap<>();
+        for (SubmissionRow submission : submissions) {
+            submissionIds.add(submission.id());
+            submissionById.put(submission.id(), submission);
+            submissionUnits.put(submission.id(), read(submission.unitIdsJson(), STRINGS));
+        }
+        Map<String, AcceptanceRow> acceptanceBySubmission = new HashMap<>();
+        for (AcceptanceRow acceptance : deliveries.acceptancesForSubmissions(submissionIds)) {
+            acceptanceBySubmission.put(acceptance.submissionId(), acceptance);
+        }
+        Map<String, UnitAcceptanceLink> passByUnitAndSubmission = new HashMap<>();
+        List<UnitAcceptanceLink> links = deliveries.unitAcceptancesIn(unitIds);
+        for (UnitAcceptanceLink link : links) {
+            passByUnitAndSubmission.put(link.unitId() + "|" + link.submissionId(), link);
+        }
+        List<ContributionRow> contributions = deliveries.contributionsIn(unitIds);
+        List<DeliveryRepository.AckRow> acks = deliveries.acks(agreement.id());
+        GovRepository.ChangeRow memberChange = agreement.sourceChangeId() == null
+                ? null : governance.findChange(agreement.sourceChangeId()).orElse(null);
+        ShareAcceptance.Catalog shareAcceptance = shareAcceptanceCatalog(agreement.taskId());
+        boolean latest = deliveries.maxAgreementVersion(agreement.taskId()) == agreement.version();
+        Map<String, String> names = users.displayNames(nameIds);
+        List<DeliveryViews.AgreementUnitView> units = new ArrayList<>();
+        for (StoredUnit unit : plan.units()) {
+            units.add(projectUnit(agreement, unit, unitRows.get(unit.id()), latest, plan.dueAt(), shareAcceptance, names,
+                    submissions, submissionUnits, acceptanceBySubmission, passByUnitAndSubmission, contributions));
+        }
+        List<String> affected = units.stream().flatMap(unit -> unit.shares().stream())
+                .map(DeliveryViews.AgreementShareView::userId).distinct().toList();
+        BigDecimal total = units.stream()
+                .map(unit -> new BigDecimal(unit.points()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        TaskRow task = tasks.findTask(agreement.taskId()).orElse(null);
+        boolean sourceValid = task != null && affected.stream()
+                .allMatch(userId -> teams.membership(task.projectId(), userId).isPresent());
+        String reviewerId = plan.reviewerPolicy() == null ? null : plan.reviewerPolicy().userId();
+        String reviewerKind = plan.reviewerPolicy() == null ? null : plan.reviewerPolicy().kind();
+        Boolean inherited = memberChange == null ? null
+                : reviewerAcceptanceInherited(plan.reviewerPolicy(), agreement.version(), agreement.taskId(), unitIds,
+                links, submissionById, acceptanceBySubmission, submissionUnits);
         return new DeliveryViews.AgreementView(agreement.id(), agreement.taskId(), agreement.version(),
-                agreement.status(), new DeliveryViews.PlanView(plan.ownerId(), Instant.parse(plan.dueAt()), units,
-                new DeliveryViews.PolicyView(plan.reviewerPolicy().userId(), plan.reviewerPolicy().kind())),
-                deliveries.acks(agreement.id()).stream().map(ack -> new DeliveryViews.AckView(
-                        ack.userId(), ack.decision(), ack.at())).toList(),
-                agreement.revision(), agreement.createdAt());
+                agreement.status(), plan.ownerId(), Instant.parse(plan.dueAt()), units,
+                new DeliveryViews.PolicyView(reviewerId, reviewerKind,
+                        reviewerId == null || reviewerId.isBlank() ? null : shownName(names, reviewerId)),
+                affected, total.toPlainString(), shownName(names, plan.ownerId()), sourceValid,
+                acks.stream().map(ack -> new DeliveryViews.AckView(ack.userId(), ack.decision(), ack.at())).toList(),
+                agreement.revision(), agreement.createdAt(),
+                memberChange == null ? null : memberChange.id(),
+                memberChange == null ? null : agreement.renewalReason(), inherited);
+    }
+
+    private DeliveryViews.AgreementUnitView projectUnit(AgreementRow agreement, StoredUnit unit, UnitRow row,
+                                                       boolean latest, String planDue,
+                                                       ShareAcceptance.Catalog shareAcceptance,
+                                                       Map<String, String> names, List<SubmissionRow> submissions,
+                                                       Map<String, List<String>> submissionUnits,
+                                                       Map<String, AcceptanceRow> acceptanceBySubmission,
+                                                       Map<String, UnitAcceptanceLink> passByUnitAndSubmission,
+                                                       List<ContributionRow> contributions) {
+        List<DeliveryViews.AgreementShareView> shares = unit.shares().stream()
+                .map(share -> new DeliveryViews.AgreementShareView(share.userId(), share.points(),
+                        share.responsibility(), shareAcceptance.accepted(agreement.id(), unit.id(),
+                        share.userId(), share.points(), share.responsibility()),
+                        shownName(names, share.userId())))
+                .toList();
+        List<DeliveryViews.PlanCriterionView> criteria = unit.criteria().stream()
+                .map(criterion -> new DeliveryViews.PlanCriterionView(criterion.id(), criterion.text())).toList();
+        SubmissionRow display = displaySubmission(unit.id(), agreement.version(), submissions, submissionUnits);
+        String status = "TODO";
+        Object acceptance = Map.of();
+        List<DeliveryViews.ContributionConfirmationView> confirmations = List.of();
+        if (display != null && "PENDING".equals(display.status())) {
+            status = "REVIEW_PENDING";
+        } else if (display != null) {
+            AcceptanceRow acceptanceRow = acceptanceBySubmission.get(display.id());
+            UnitAcceptanceLink link = passByUnitAndSubmission.get(unit.id() + "|" + display.id());
+            boolean passed = link != null && link.passed();
+            status = passed ? "PASSED" : "RETURNED";
+            if (acceptanceRow != null) {
+                List<DeliveryViews.CheckView> checks = read(acceptanceRow.checksJson(), CHECKS).stream()
+                        .filter(check -> unit.id().equals(check.unitId())).toList();
+                acceptance = new DeliveryViews.AcceptanceView(acceptanceRow.id(), acceptanceRow.submissionId(),
+                        acceptanceRow.reviewerId(), acceptanceRow.kind(), checks, acceptanceRow.reason(),
+                        acceptanceRow.decision(), acceptanceRow.acceptedAt(), acceptanceRow.revision());
+                if (passed) {
+                    confirmations = contributions.stream()
+                            .filter(item -> unit.id().equals(item.unitId())
+                                    && acceptanceRow.id().equals(item.acceptanceId()))
+                            .map(item -> new DeliveryViews.ContributionConfirmationView(item.acceptanceId(),
+                                    item.at(), item.statement(), item.submissionId(), item.userId()))
+                            .toList();
+                }
+            }
+        }
+        return new DeliveryViews.AgreementUnitView(unit.id(), unit.clientKey(), unit.title(), unit.points(),
+                shares, criteria, unitDue(unit, row, latest, planDue), unitRevision(unit, row, latest),
+                status, acceptance, confirmations);
+    }
+
+    private SubmissionRow displaySubmission(String unitId, int agreementVersion, List<SubmissionRow> submissions,
+                                           Map<String, List<String>> submissionUnits) {
+        SubmissionRow chosen = null;
+        for (SubmissionRow submission : submissions) {
+            if ("WITHDRAWN".equals(submission.status())) {
+                continue;
+            }
+            if (submission.agreementVersion() != null && submission.agreementVersion() > agreementVersion) {
+                continue;
+            }
+            if (!submissionUnits.getOrDefault(submission.id(), List.of()).contains(unitId)) {
+                continue;
+            }
+            if (chosen == null || submission.sequence() > chosen.sequence()) {
+                chosen = submission;
+            }
+        }
+        return chosen;
+    }
+
+    /**
+     * 交接约定是否继承既有通过验收。验收人和种类取目标约定计划里的 reviewerPolicy，
+     * 不读任务当前的 reviewer_arrangement，也不把之后的验收倒填回来。
+     */
+    private boolean reviewerAcceptanceInherited(StoredPolicy policy, int agreementVersion, String taskId,
+                                               List<String> unitIds, List<UnitAcceptanceLink> links,
+                                               Map<String, SubmissionRow> submissionById,
+                                               Map<String, AcceptanceRow> acceptanceBySubmission,
+                                               Map<String, List<String>> submissionUnits) {
+        List<ReviewerInheritance.Pass> passes = new ArrayList<>();
+        for (UnitAcceptanceLink link : links) {
+            SubmissionRow submission = submissionById.get(link.submissionId());
+            AcceptanceRow acceptance = acceptanceBySubmission.get(link.submissionId());
+            if (submission == null || acceptance == null
+                    || !submissionUnits.getOrDefault(submission.id(), List.of()).contains(link.unitId())) {
+                continue;
+            }
+            passes.add(new ReviewerInheritance.Pass(submission.taskId(), link.unitId(), submission.agreementVersion(),
+                    acceptance.reviewerId(), acceptance.kind(), link.passed(), "WITHDRAWN".equals(submission.status())));
+        }
+        return ReviewerInheritance.inherited(policy == null ? null
+                        : new ReviewerInheritance.Policy(policy.userId(), policy.kind()),
+                agreementVersion, taskId, unitIds, passes);
+    }
+
+    /**
+     * 一次读取里装入该任务的约定、提案、本人接受和确认。份额是否接受按目标版本沿来源链计算。
+     */
+    private ShareAcceptance.Catalog shareAcceptanceCatalog(String taskId) {
+        List<AgreementRow> rows = deliveries.agreementsIn(List.of(taskId));
+        List<ProposalRow> proposalRows = deliveries.proposals(taskId);
+        Map<String, ProposalRow> proposalsById = new HashMap<>();
+        List<String> sourceIds = new ArrayList<>();
+        for (ProposalRow proposal : proposalRows) {
+            proposalsById.put(proposal.id(), proposal);
+        }
+        for (AgreementRow row : rows) {
+            if (row.sourceChangeId() != null) {
+                sourceIds.add(row.sourceChangeId());
+            }
+        }
+        Set<String> memberChangeIds = new LinkedHashSet<>(governance.changeIdsIn(sourceIds));
+        Map<String, Set<String>> acceptedUsers = new HashMap<>();
+        for (DeliveryRepository.AckRef ack : deliveries.acksIn(rows.stream().map(AgreementRow::id).toList())) {
+            if ("ACCEPT".equals(ack.decision())) {
+                acceptedUsers.computeIfAbsent(ack.agreementId(), ignored -> new LinkedHashSet<>()).add(ack.userId());
+            }
+        }
+        Map<String, Set<String>> confirmedUsers = new HashMap<>();
+        for (ResponseRow response : deliveries.responsesIn(proposalRows.stream().map(ProposalRow::id).toList())) {
+            if ("CONFIRMATION".equals(response.kind()) && "ACCEPT".equals(response.decision())) {
+                confirmedUsers.computeIfAbsent(response.proposalId(), ignored -> new LinkedHashSet<>()).add(response.userId());
+            }
+        }
+        List<ShareAcceptance.Agreement> agreements = new ArrayList<>();
+        for (AgreementRow row : rows) {
+            String proposalId = null;
+            if (row.sourceChangeId() != null && !memberChangeIds.contains(row.sourceChangeId())
+                    && proposalsById.containsKey(row.sourceChangeId())) {
+                proposalId = row.sourceChangeId();
+            }
+            agreements.add(new ShareAcceptance.Agreement(row.id(), row.version(), row.status(), proposalId,
+                    acceptanceUnits(readPlanOrEmpty(row.planJson())),
+                    acceptedUsers.getOrDefault(row.id(), Set.of())));
+        }
+        List<ShareAcceptance.Proposal> proposals = new ArrayList<>();
+        for (ProposalRow proposal : proposalRows) {
+            proposals.add(new ShareAcceptance.Proposal(proposal.id(), proposal.baseAgreementVersion(), proposal.status(),
+                    changedUnitIds(proposal), confirmedUsers.getOrDefault(proposal.id(), Set.of())));
+        }
+        return ShareAcceptance.catalog(agreements, proposals);
+    }
+
+    private List<ShareAcceptance.Unit> acceptanceUnits(StoredPlan plan) {
+        if (plan == null || plan.units() == null) {
+            return List.of();
+        }
+        List<ShareAcceptance.Unit> units = new ArrayList<>();
+        for (StoredUnit unit : plan.units()) {
+            List<ShareAcceptance.Share> shares = new ArrayList<>();
+            if (unit.shares() != null) {
+                for (StoredShare share : unit.shares()) {
+                    shares.add(new ShareAcceptance.Share(share.userId(), share.points(), share.responsibility()));
+                }
+            }
+            List<ShareAcceptance.Criterion> criteria = new ArrayList<>();
+            if (unit.criteria() != null) {
+                for (StoredCriterion criterion : unit.criteria()) {
+                    criteria.add(new ShareAcceptance.Criterion(criterion.id(), criterion.text()));
+                }
+            }
+            units.add(new ShareAcceptance.Unit(unit.id(), unit.title(), unit.points(), unit.dueAt(), shares, criteria));
+        }
+        return units;
+    }
+
+    private Set<String> changedUnitIds(ProposalRow proposal) {
+        Set<String> unitIds = new LinkedHashSet<>();
+        for (Map<String, Object> change : read(proposal.changesJson(), CHANGES)) {
+            Object unitId = change.get("unitId");
+            if (unitId != null && !unitId.toString().isBlank()) {
+                unitIds.add(unitId.toString());
+            }
+        }
+        return unitIds;
+    }
+
+    private StoredPlan readPlanOrEmpty(String value) {
+        try {
+            StoredPlan plan = json.readValue(value, StoredPlan.class);
+            return plan == null ? new StoredPlan(null, null, List.of(), null) : plan;
+        } catch (JsonProcessingException ex) {
+            return new StoredPlan(null, null, List.of(), null);
+        }
+    }
+
+    private Instant unitDue(StoredUnit unit, UnitRow row, boolean latest, String planDue) {
+        if (unit.dueAt() != null && !unit.dueAt().isBlank()) {
+            return Instant.parse(unit.dueAt());
+        }
+        if (latest && row != null) {
+            return row.dueAt();
+        }
+        return Instant.parse(planDue);
+    }
+
+    private Integer unitRevision(StoredUnit unit, UnitRow row, boolean latest) {
+        if (unit.revision() != null) {
+            return unit.revision();
+        }
+        if (latest && row != null) {
+            return row.revision();
+        }
+        return null;
+    }
+
+    private String displayName(Map<String, String> names, String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        return names.get(userId);
+    }
+
+    private String shownName(Map<String, String> names, String userId) {
+        String name = displayName(names, userId);
+        return name == null ? "" : name;
     }
 
     private DeliveryViews.ProposalView proposalView(ProposalRow proposal, TaskRow task, String userId) {
@@ -1247,7 +1551,7 @@ public class DeliveryService {
     private DeliveryViews.AcceptanceView acceptanceView(AcceptanceRow acceptance) {
         return new DeliveryViews.AcceptanceView(acceptance.id(), acceptance.submissionId(), acceptance.reviewerId(),
                 acceptance.kind(), read(acceptance.checksJson(), CHECKS), acceptance.reason(), acceptance.decision(),
-                acceptance.acceptedAt());
+                acceptance.acceptedAt(), acceptance.revision());
     }
 
     private DeliveryViews.InvitationView invitationView(InvitationRow invitation) {
@@ -1472,6 +1776,164 @@ public class DeliveryService {
         return value == null || value.isBlank() ? null : value;
     }
 
+    private DeliveryViews.AgreementView writeAgreement(AuthenticatedUser principal, String path, String key,
+                                                       Object body, java.util.function.Supplier<DeliveryViews.AgreementView> action) {
+        return idempotency.executeHistorical(new IdempotencyRequest(principal, "POST", path, key, body, List.of()),
+                () -> policy.requireStudent(principal), action, cached -> replayAgreement(principal, cached));
+    }
+
+    /**
+     * 回放约定类回执：先按回执里的 taskId 核验当前项目资格，再还原当次快照。
+     * 找不到约定记录时不退回未核权的缓存。交接续约的 id 可能不是约定 id，同样只认 taskId。
+     * 后续操作改过的当前约定不能冒充这次回执。
+     */
+    private DeliveryViews.AgreementView replayAgreement(AuthenticatedUser principal, JsonNode cached) {
+        String taskId = text(cached, "taskId");
+        if (taskId == null) {
+            throw new ApiException(ApiCode.FORBIDDEN);
+        }
+        TaskRow task = tasks.findTask(taskId).orElse(null);
+        if (task == null) {
+            throw new ApiException(ApiCode.FORBIDDEN);
+        }
+        requireMember(principal, task);
+        if (cached.hasNonNull("ownerId")) {
+            ObjectNode copy = ((ObjectNode) cached).deepCopy();
+            copy.remove("plan");
+            try {
+                return json.convertValue(copy, DeliveryViews.AgreementView.class);
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalStateException("当前结构的约定回执无法恢复", ex);
+            }
+        }
+        JsonNode plan = cached.get("plan");
+        if (plan == null || !plan.isObject() || !plan.hasNonNull("ownerId")) {
+            throw new IllegalStateException("历史约定回执缺少可核对的 plan，不能编造当前约定");
+        }
+        return legacyAgreement(cached, plan, task);
+    }
+
+    private DeliveryViews.AgreementView legacyAgreement(JsonNode cached, JsonNode plan, TaskRow task) {
+        List<DeliveryViews.AgreementUnitView> units = new ArrayList<>();
+        JsonNode rawUnits = plan.get("units");
+        if (rawUnits != null && !rawUnits.isNull()) {
+            if (!rawUnits.isArray()) {
+                throw new IllegalStateException("历史约定回执的 plan.units 不是数组");
+            }
+            for (JsonNode unit : rawUnits) {
+                units.add(legacyUnit(unit));
+            }
+        }
+        List<String> affected = units.stream().flatMap(unit -> unit.shares().stream())
+                .map(DeliveryViews.AgreementShareView::userId).filter(id -> id != null && !id.isBlank()).distinct().toList();
+        BigDecimal total = units.stream()
+                .map(unit -> unit.points() == null ? BigDecimal.ZERO : new BigDecimal(unit.points()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        boolean sourceValid = affected.stream().allMatch(userId -> teams.membership(task.projectId(), userId).isPresent());
+        JsonNode policyNode = plan.get("reviewerPolicy");
+        List<DeliveryViews.AckView> acknowledgements = new ArrayList<>();
+        JsonNode rawAcks = cached.get("acknowledgements");
+        if (rawAcks != null && !rawAcks.isNull()) {
+            if (!rawAcks.isArray()) {
+                throw new IllegalStateException("历史约定回执的 acknowledgements 不是数组");
+            }
+            for (JsonNode ack : rawAcks) {
+                acknowledgements.add(new DeliveryViews.AckView(text(ack, "userId"), text(ack, "decision"),
+                        instantText(ack, "at")));
+            }
+        }
+        String ownerId = text(plan, "ownerId");
+        return new DeliveryViews.AgreementView(text(cached, "id"), text(cached, "taskId"),
+                cached.path("version").asInt(), text(cached, "status"), ownerId,
+                instantText(plan, "dueAt"), units,
+                new DeliveryViews.PolicyView(policyNode == null ? null : text(policyNode, "userId"),
+                        policyNode == null ? null : text(policyNode, "kind"),
+                        policyNode == null ? null : text(policyNode, "displayName")),
+                affected, total.toPlainString(), name(ownerId), sourceValid, acknowledgements,
+                cached.path("revision").asInt(), instantText(cached, "createdAt"),
+                text(cached, "memberChangeId"), text(cached, "renewalReason"),
+                boolIfPresent(cached, "reviewerAcceptanceInherited"));
+    }
+
+    private DeliveryViews.AgreementUnitView legacyUnit(JsonNode unit) {
+        List<DeliveryViews.AgreementShareView> shares = new ArrayList<>();
+        for (JsonNode share : unit.path("shares")) {
+            shares.add(new DeliveryViews.AgreementShareView(text(share, "userId"), text(share, "points"),
+                    text(share, "responsibility"), boolIfPresent(share, "accepted"), text(share, "displayName")));
+        }
+        List<DeliveryViews.PlanCriterionView> criteria = new ArrayList<>();
+        for (JsonNode criterion : unit.path("criteria")) {
+            criteria.add(new DeliveryViews.PlanCriterionView(text(criterion, "id"), text(criterion, "text")));
+        }
+        return new DeliveryViews.AgreementUnitView(text(unit, "id"), text(unit, "clientKey"),
+                text(unit, "title"), text(unit, "points"), shares, criteria,
+                instantText(unit, "dueAt"), integerIfPresent(unit, "revision"), text(unit, "status"),
+                legacyAcceptance(unit.get("acceptance")), legacyConfirmations(unit.get("contributionConfirmations")));
+    }
+
+    private Object legacyAcceptance(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject()) {
+            return null;
+        }
+        if (node.isEmpty()) {
+            return Map.of();
+        }
+        if (!node.hasNonNull("id") || !node.hasNonNull("submissionId") || !node.has("checks")) {
+            return null;
+        }
+        return json.convertValue(node, new TypeReference<Map<String, Object>>() {
+        });
+    }
+
+    private List<DeliveryViews.ContributionConfirmationView> legacyConfirmations(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isArray()) {
+            return null;
+        }
+        for (JsonNode item : node) {
+            if (!item.hasNonNull("acceptanceId") || !item.hasNonNull("submissionId") || !item.hasNonNull("userId")
+                    || !item.has("statement") || !item.hasNonNull("createdAt")) {
+                return null;
+            }
+        }
+        return json.convertValue(node, new TypeReference<List<DeliveryViews.ContributionConfirmationView>>() {
+        });
+    }
+
+    private static String text(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull() || value.asText().isBlank()) {
+            return null;
+        }
+        return value.asText();
+    }
+
+    private static Instant instantText(JsonNode node, String field) {
+        String value = text(node, field);
+        return value == null ? null : Instant.parse(value);
+    }
+
+    private static Boolean boolIfPresent(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isBoolean()) {
+            return null;
+        }
+        return value.booleanValue();
+    }
+
+    private static Integer integerIfPresent(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isNumber()) {
+            return null;
+        }
+        return value.intValue();
+    }
+
     private <T> T write(AuthenticatedUser principal, String method, String path, String key, Object body,
                         Class<T> type, java.util.function.Supplier<T> action) {
         return idempotency.execute(new IdempotencyRequest(principal, method, path, key, body, List.of()), type,
@@ -1510,7 +1972,7 @@ public class DeliveryService {
     }
 
     public record StoredUnit(String id, String clientKey, String title, String points, List<StoredShare> shares,
-                             List<StoredCriterion> criteria) {
+                             List<StoredCriterion> criteria, String dueAt, Integer revision) {
     }
 
     public record StoredShare(String userId, String points, String responsibility) {

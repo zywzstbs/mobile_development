@@ -9,8 +9,11 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -47,6 +50,19 @@ public class UserRepository {
                         WHERE login_id = ?
                         """, userMapper, loginId)
                 .stream().findFirst();
+    }
+
+    public Map<String, String> displayNames(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        String marks = String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
+        Map<String, String> names = new LinkedHashMap<>();
+        jdbcTemplate.query("SELECT id, display_name FROM app_user WHERE id IN (" + marks + ")",
+                rs -> {
+                    names.put(rs.getString("id"), rs.getString("display_name"));
+                }, ids.toArray());
+        return names;
     }
 
     public Optional<UserRow> findById(String userId) {

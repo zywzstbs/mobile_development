@@ -33,10 +33,13 @@ public final class GovViews {
     ) {
     }
 
+    public record MyBallot(String choice, int revision) {
+    }
+
     public record Vote(
             String id, String projectId, String targetUserId, String status, String facts, String statement,
-            Instant statementEndsAt, Instant votingEndsAt, List<String> electorate, int agree, int disagree,
-            int abstain, int revision, String memberChangeId
+            Instant statementEndsAt, Instant votingEndsAt, int eligibleCount, int agree, int disagree,
+            int abstain, int unvoted, MyBallot myBallot, String result, int revision, String memberChangeId
     ) {
     }
 

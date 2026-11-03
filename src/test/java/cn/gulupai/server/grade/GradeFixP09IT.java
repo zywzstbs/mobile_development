@@ -1,5 +1,6 @@
 package cn.gulupai.server.grade;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.identity.cli.AcademicImportService;
 import cn.gulupai.server.identity.cli.AdminImportService;
@@ -567,7 +568,7 @@ class GradeFixP09IT {
     }
 
     private void clearAll() {
-        for (String table : List.of("chat_sync_cursor", "chat_delivery_range", "chat_change", "chat_message",
+        TestSchemaCleaner.deleteAll(jdbc, List.of("chat_sync_cursor", "chat_delivery_range", "chat_change", "chat_message",
                 "chat_read_state", "chat_counter", "notification_outbox", "topic_follow", "content_revision",
                 "board_reply", "board_topic", "announcement_reminder", "announcement_preview",
                 "announcement_receipt", "announcement_recipient", "announcement_version", "help_article",
@@ -593,9 +594,7 @@ class GradeFixP09IT {
                 "square_merge", "preview_token", "square", "verified_enrollment", "verified_course",
                 "course_name", "period", "term", "operation_receipt", "access_token", "auth_session",
                 "audit_event", "rate_window", "import_batch", "user_role", "user_profile", "app_user",
-                "school")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+                "school"));
     }
 
     private record Course(String squareId, String assignmentId, String projectId) {

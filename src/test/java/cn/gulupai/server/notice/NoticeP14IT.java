@@ -1,5 +1,6 @@
 package cn.gulupai.server.notice;
 
+import cn.gulupai.server.it.TestSchemaCleaner;
 import cn.gulupai.server.common.clock.MutableClock;
 import cn.gulupai.server.identity.cli.AcademicImportService;
 import cn.gulupai.server.identity.cli.AdminImportService;
@@ -23,6 +24,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -67,7 +69,7 @@ class NoticeP14IT {
     }
 
     private void clearAll() {
-        for (String table : List.of("announcement_reminder", "announcement_preview",
+        TestSchemaCleaner.deleteAll(jdbc, List.of("announcement_reminder", "announcement_preview",
                 "announcement_receipt", "announcement_recipient", "announcement_version",
                 "help_article", "help_feedback", "support_route", "support_ticket",
                 "support_reply", "support_history", "operator_grant", "content_report",
@@ -94,9 +96,7 @@ class NoticeP14IT {
                 "course_membership", "merge_ballot", "square_merge", "preview_token", "square",
                 "verified_enrollment", "verified_course", "course_name", "period", "term",
                 "operation_receipt", "access_token", "auth_session", "audit_event", "rate_window",
-                "import_batch", "user_role", "user_profile", "app_user", "school")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+                "import_batch", "user_role", "user_profile", "app_user", "school"));
     }
 
     @Test
@@ -210,6 +210,167 @@ class NoticeP14IT {
                         .content("{\"expectedRevision\":3,\"reason\":\"课程调整\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("REVOKED"));
+    }
+
+    @Test
+    void formatOnlyRejectsSubstantiveTitleAndKeepsReceipts() throws Exception {
+        String teacher = login("teacher_demo_01", "demo-password-03");
+        String student = login("student_demo_01", "demo-password-01");
+        String squareId = square(student, "p14-format-title");
+        int squareRevision = jdbc.queryForObject("SELECT revision FROM square WHERE id = ?", Integer.class, squareId);
+        Map<String, Object> previewBody = new java.util.LinkedHashMap<>();
+        previewBody.put("expectedRevision", squareRevision);
+        previewBody.put("publisherRole", "TEACHER");
+        previewBody.put("assignmentId", null);
+        previewBody.put("title", "Quiz");
+        previewBody.put("content", "Bring a pen");
+        previewBody.put("category", "EXAM");
+        previewBody.put("importance", "NORMAL");
+        previewBody.put("requiresAcknowledgement", true);
+        previewBody.put("acknowledgeDueAt", "2026-11-20T00:00:00Z");
+        previewBody.put("expiresAt", null);
+        previewBody.put("refs", List.of());
+        JsonNode preview = data(mockMvc.perform(post("/api/v1/squares/{id}/announcement-previews", squareId)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-format-preview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(previewBody)))
+                .andExpect(status().isOk()).andReturn());
+        JsonNode created = data(mockMvc.perform(post("/api/v1/squares/{id}/announcements", squareId)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-format-publish")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "title", "Quiz", "content", "Bring a pen", "publisherRole", "TEACHER",
+                                "previewToken", preview.path("previewToken").asText()))))
+                .andExpect(status().isOk()).andReturn());
+        String id = created.path("id").asText();
+        mockMvc.perform(post("/api/v1/announcements/{id}/acknowledgements", id)
+                        .header("Authorization", bearer(student))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"contentVersion\":1}"))
+                .andExpect(status().isOk());
+        String snapshot = jdbc.queryForObject(
+                "SELECT recipient_snapshot_id FROM announcement WHERE id = ?", String.class, id);
+        int versions = jdbc.queryForObject(
+                "SELECT count(*) FROM announcement_version WHERE announcement_id = ?", Integer.class, id);
+        int receipts = jdbc.queryForObject(
+                "SELECT count(*) FROM announcement_receipt WHERE announcement_id = ?", Integer.class, id);
+        int outbox = jdbc.queryForObject("SELECT count(*) FROM notification_outbox", Integer.class);
+        Instant acknowledged = jdbc.queryForObject("""
+                SELECT acknowledged_at FROM announcement_receipt
+                WHERE announcement_id = ? AND content_version = 1
+                """, OffsetDateTime.class, id).toInstant();
+
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-title-semantic")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\"考试取消\",\"content\":\"Bring a pen\",\"changeSummary\":null}"))
+                .andExpect(status().isUnprocessableEntity());
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-title-space")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\"Qui z\",\"content\":\"Bring a pen\",\"changeSummary\":null}"))
+                .andExpect(status().isUnprocessableEntity());
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-title-case")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\"quiz\",\"content\":\"Bring a pen\",\"changeSummary\":null}"))
+                .andExpect(status().isUnprocessableEntity());
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-body-semantic")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\"Quiz\",\"content\":\"Bring a pencil\",\"changeSummary\":null}"))
+                .andExpect(status().isUnprocessableEntity());
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(student)).header("Idempotency-Key", "p14-title-student")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\"Quiz\",\"content\":\"Bring a pen\",\"changeSummary\":null}"))
+                .andExpect(status().isForbidden());
+        assertNoticeUnchanged(id, snapshot, versions, receipts, outbox, acknowledged, 1);
+
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-title-format")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\" \\r\\nQuiz\",\"content\":\"Bring a pen\\n\",\"changeSummary\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.contentVersion").value(1))
+                .andExpect(jsonPath("$.data.displayRevision").value(2))
+                .andExpect(jsonPath("$.data.title").value("Quiz"));
+        assertThat(jdbc.queryForObject(
+                "SELECT recipient_snapshot_id FROM announcement WHERE id = ?", String.class, id)).isEqualTo(snapshot);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM announcement_version WHERE announcement_id = ?", Integer.class, id)).isEqualTo(versions);
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-title-format")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\" \\r\\nQuiz\",\"content\":\"Bring a pen\\n\",\"changeSummary\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.displayRevision").value(2))
+                .andExpect(jsonPath("$.data.contentVersion").value(1));
+        assertThat(jdbc.queryForObject("SELECT revision FROM announcement WHERE id = ?", Integer.class, id)).isEqualTo(2);
+
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-title-stale")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":1,\"changeKind\":\"FORMAT_ONLY\","
+                                + "\"title\":\"Quiz\",\"content\":\"Bring a pen\",\"changeSummary\":null}"))
+                .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT revision FROM announcement WHERE id = ?", Integer.class, id)).isEqualTo(2);
+
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-title-substantive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedRevision\":2,\"changeKind\":\"SUBSTANTIVE\","
+                                + "\"title\":\"考试取消\",\"content\":\"Bring a pen\",\"changeSummary\":\"改标题\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.contentVersion").value(2))
+                .andExpect(jsonPath("$.data.title").value("考试取消"));
+        assertThat(jdbc.queryForObject(
+                "SELECT recipient_snapshot_id FROM announcement WHERE id = ?", String.class, id)).isNotEqualTo(snapshot);
+        mockMvc.perform(post("/api/v1/announcements/{id}/acknowledgements", id)
+                        .header("Authorization", bearer(student))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"contentVersion\":1}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/v1/announcements/{id}/acknowledgements", id)
+                        .header("Authorization", bearer(student))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"contentVersion\":2}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("""
+                SELECT acknowledged_at FROM announcement_receipt
+                WHERE announcement_id = ? AND content_version = 1
+                """, OffsetDateTime.class, id).toInstant()).isEqualTo(acknowledged);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM announcement_receipt
+                WHERE announcement_id = ? AND content_version = 2 AND acknowledged_at IS NOT NULL
+                """, Integer.class, id)).isEqualTo(1);
+    }
+
+    private void assertNoticeUnchanged(String id, String snapshot, int versions, int receipts, int outbox,
+                                      Instant acknowledged, int revision) {
+        Map<String, Object> row = jdbc.queryForMap("""
+                SELECT title, content, revision, display_revision, content_version, recipient_snapshot_id
+                FROM announcement WHERE id = ?
+                """, id);
+        assertThat(row.get("title")).isEqualTo("Quiz");
+        assertThat(row.get("content")).isEqualTo("Bring a pen");
+        assertThat(((Number) row.get("revision")).intValue()).isEqualTo(revision);
+        assertThat(((Number) row.get("display_revision")).intValue()).isEqualTo(1);
+        assertThat(((Number) row.get("content_version")).intValue()).isEqualTo(1);
+        assertThat(row.get("recipient_snapshot_id")).isEqualTo(snapshot);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM announcement_version WHERE announcement_id = ?", Integer.class, id)).isEqualTo(versions);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM announcement_receipt WHERE announcement_id = ?", Integer.class, id)).isEqualTo(receipts);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notification_outbox", Integer.class)).isEqualTo(outbox);
+        assertThat(jdbc.queryForObject("""
+                SELECT acknowledged_at FROM announcement_receipt
+                WHERE announcement_id = ? AND content_version = 1
+                """, OffsetDateTime.class, id).toInstant()).isEqualTo(acknowledged);
     }
 
     @Test
@@ -350,6 +511,173 @@ class NoticeP14IT {
         mockMvc.perform(get("/api/v1/me/notifications").param("unreadOnly", "true")
                         .header("Authorization", bearer(student)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void previewTokenStaysBoundToCourseRevisionAndFrozenParameters() throws Exception {
+        String teacher = login("teacher_demo_01", "demo-password-03");
+        String student = login("student_demo_01", "demo-password-01");
+        String squareId = square(student, "p58-preview");
+        String otherSquare = distinctSquare();
+        assertThat(otherSquare).isNotEqualTo(squareId);
+        JsonNode created = data(mockMvc.perform(post("/api/v1/squares/{id}/announcements", squareId)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-ann")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"原标题\",\"content\":\"原正文\",\"publisherRole\":\"TEACHER\"}"))
+                .andExpect(status().isOk()).andReturn());
+        String id = created.path("id").asText();
+        int notices = jdbc.queryForObject("SELECT count(*) FROM announcement", Integer.class);
+        int versions = jdbc.queryForObject("SELECT count(*) FROM announcement_version", Integer.class);
+        int notifications = jdbc.queryForObject("SELECT count(*) FROM notification", Integer.class);
+
+        Map<String, Object> previewBody = new java.util.LinkedHashMap<>();
+        previewBody.put("expectedRevision", 1);
+        previewBody.put("publisherRole", "TEACHER");
+        previewBody.put("assignmentId", null);
+        previewBody.put("title", "原标题");
+        previewBody.put("content", "原正文");
+        previewBody.put("category", "COURSE_INFO");
+        previewBody.put("importance", "NORMAL");
+        previewBody.put("requiresAcknowledgement", false);
+        previewBody.put("acknowledgeDueAt", null);
+        previewBody.put("expiresAt", null);
+        previewBody.put("refs", List.of());
+        JsonNode mismatched = data(mockMvc.perform(post("/api/v1/squares/{id}/announcement-previews", squareId)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-mismatch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(previewBody)))
+                .andExpect(status().isOk()).andReturn());
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-bad-params")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "expectedRevision", 1, "changeKind", "SUBSTANTIVE",
+                                "title", "原标题", "content", "原正文", "changeSummary", "改类别",
+                                "previewToken", mismatched.path("previewToken").asText()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PREVIEW_STALE"));
+        assertThat(jdbc.queryForObject("SELECT content_version FROM announcement WHERE id=?", Integer.class, id))
+                .isEqualTo(1);
+
+        previewBody.put("category", "OTHER");
+        JsonNode preview = data(mockMvc.perform(post("/api/v1/squares/{id}/announcement-previews", squareId)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-ok")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(previewBody)))
+                .andExpect(status().isOk()).andReturn());
+        String token = preview.path("previewToken").asText();
+        jdbc.update("UPDATE square SET revision = revision + 1 WHERE id=?", squareId);
+        jdbc.update("UPDATE announcement SET revision = 2 WHERE id=?", id);
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-new-rev")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "expectedRevision", 2, "changeKind", "SUBSTANTIVE",
+                                "title", "原标题", "content", "原正文", "changeSummary", "新版本配旧预览",
+                                "previewToken", token))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PREVIEW_STALE"));
+        jdbc.update("UPDATE square SET revision = 1 WHERE id=?", squareId);
+        jdbc.update("UPDATE announcement SET revision = 1 WHERE id=?", id);
+
+        mockMvc.perform(post("/api/v1/squares/{id}/announcements", otherSquare)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-other-square")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "title", "原标题", "content", "原正文", "publisherRole", "TEACHER",
+                                "previewToken", token))))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/v1/squares/{id}/announcements", squareId)
+                        .header("Authorization", bearer(student)).header("Idempotency-Key", "p58-preview-student")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "title", "原标题", "content", "原正文", "publisherRole", "TEACHER",
+                                "previewToken", token))))
+                .andExpect(status().isForbidden());
+        jdbc.update("UPDATE announcement_preview SET expires_at = ? WHERE token_hash IS NOT NULL",
+                java.time.OffsetDateTime.ofInstant(BASE.minusSeconds(5), ZoneOffset.UTC));
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-expired")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "expectedRevision", 1, "changeKind", "SUBSTANTIVE",
+                                "title", "原标题", "content", "原正文", "changeSummary", "过期",
+                                "previewToken", token))))
+                .andExpect(status().isConflict());
+        jdbc.update("UPDATE announcement_preview SET expires_at = ? ",
+                java.time.OffsetDateTime.ofInstant(BASE.plusSeconds(600), ZoneOffset.UTC));
+
+        jdbc.update("""
+                INSERT INTO class_grant(id, square_id, user_id, capabilities_json, status, expires_at, granted_by, revision)
+                VALUES (?, ?, 'user_demo_teacher_01', '["ANNOUNCEMENT_WRITE"]', 'ACTIVE', ?, 'user_demo_teacher_01', 1)
+                """, UUID.randomUUID().toString(), squareId,
+                java.time.OffsetDateTime.ofInstant(BASE.plusSeconds(86400), ZoneOffset.UTC));
+        mockMvc.perform(post("/api/v1/squares/{id}/announcements", squareId)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "title", "原标题", "content", "原正文", "publisherRole", "CLASS_ASSISTANT",
+                                "previewToken", token))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PREVIEW_STALE"));
+
+        mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-format")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "expectedRevision", 1, "changeKind", "FORMAT_ONLY",
+                                "title", "原标题", "content", "原正文", "changeSummary", "格式",
+                                "previewToken", token))))
+                .andExpect(status().isUnprocessableEntity());
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM announcement", Integer.class)).isEqualTo(notices);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM announcement_version", Integer.class)).isEqualTo(versions);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notification", Integer.class)).isEqualTo(notifications);
+        JsonNode fresh = data(mockMvc.perform(post("/api/v1/squares/{id}/announcement-previews", squareId)
+                        .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p58-preview-fresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(previewBody)))
+                .andExpect(status().isOk()).andReturn());
+        String freshToken = fresh.path("previewToken").asText();
+        var first = java.util.concurrent.CompletableFuture.supplyAsync(() -> postPreviewConsume(teacher, squareId, freshToken, "p58-race-a"));
+        var second = java.util.concurrent.CompletableFuture.supplyAsync(() -> postPreviewConsume(teacher, squareId, freshToken, "p58-race-b"));
+        int statusA = first.join();
+        int statusB = second.join();
+        assertThat(List.of(statusA, statusB)).contains(200);
+        assertThat(statusA == 200 && statusB == 200).isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM announcement", Integer.class)).isEqualTo(notices + 1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM announcement_preview WHERE used_at IS NOT NULL AND created_by='user_demo_teacher_01'",
+                Integer.class)).isEqualTo(1);
+    }
+
+    private int postPreviewConsume(String teacher, String squareId, String token, String key) {
+        try {
+            return mockMvc.perform(post("/api/v1/squares/{id}/announcements", squareId)
+                            .header("Authorization", bearer(teacher)).header("Idempotency-Key", key)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(mapper.writeValueAsString(Map.of(
+                                    "title", "原标题", "content", "原正文", "publisherRole", "TEACHER",
+                                    "previewToken", token))))
+                    .andReturn().getResponse().getStatus();
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private String distinctSquare() {
+        String id = "sq_p58_preview_other";
+        jdbc.update("""
+                INSERT INTO square(id, school_id, term_id, name, teacher_name, slots_json,
+                    canonical_key, square_no, status)
+                VALUES (?, ?, ?, '另一门课', '示例教师', '[]'::jsonb, ?, 'P58-OTHER', 'ACTIVE')
+                """, id, SCHOOL, TERM, "b".repeat(64));
+        jdbc.update("""
+                INSERT INTO teacher_assignment(id, square_id, user_id, active, started_at, revision)
+                VALUES (?, ?, 'user_demo_teacher_01', true, ?, 1)
+                """, UUID.randomUUID().toString(), id,
+                java.time.OffsetDateTime.ofInstant(BASE, ZoneOffset.UTC));
+        return id;
     }
 
     private String square(String studentToken, String key) throws Exception {
