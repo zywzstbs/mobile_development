@@ -10,16 +10,19 @@ import cn.gulupai.server.common.security.CurrentUserPolicy;
 import cn.gulupai.server.course.api.AssignmentView;
 import cn.gulupai.server.course.api.ConfirmAssignmentRequest;
 import cn.gulupai.server.course.api.CreateAssignmentRequest;
+import cn.gulupai.server.course.api.PatchAssignmentRequest;
 import cn.gulupai.server.course.api.SourceReferenceRequest;
 import cn.gulupai.server.course.api.SourceReferenceView;
 import cn.gulupai.server.course.persistence.AssignmentRow;
 import cn.gulupai.server.course.persistence.SquareRepository;
 import cn.gulupai.server.course.persistence.SquareRow;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,7 +59,18 @@ public class AssignmentService {
         AssignmentRow row = squareRepository.findAssignment(assignmentId)
                 .orElseThrow(ApiException::notFound);
         squareService.requireReadableSquare(principal, row.squareId());
-        return projectionService.assignment(row);
+        return projectionService.assignment(row, principal.userId());
+    }
+
+    public AssignmentView edit(AuthenticatedUser principal, String assignmentId,
+                               PatchAssignmentRequest request, String idempotencyKey, String path) {
+        policy.requireActiveBusinessUser(principal);
+        EditedAssignment edited = normalizeEdit(request);
+        return idempotencyService.executeHistorical(
+                new IdempotencyRequest(principal, "PATCH", path, idempotencyKey, request, List.of()),
+                () -> policy.requireActiveBusinessUser(principal),
+                () -> editOnce(principal, assignmentId, request.expectedRevision(), edited),
+                cached -> replayEdit(principal, cached));
     }
 
     public AssignmentView create(AuthenticatedUser principal, String squareId,
@@ -68,9 +82,8 @@ public class AssignmentService {
         if (relation(principal, square) == Relation.NONE) {
             throw new ApiException(ApiCode.FORBIDDEN);
         }
-        return idempotencyService.execute(
+        return idempotencyService.executeHistorical(
                 new IdempotencyRequest(principal, "POST", path, idempotencyKey, request, List.of()),
-                AssignmentView.class,
                 () -> {
                     policy.requireActiveBusinessUser(principal);
                     SquareRow current = squareService.requireReadableSquare(principal, squareId);
@@ -78,7 +91,8 @@ public class AssignmentService {
                         throw new ApiException(ApiCode.FORBIDDEN);
                     }
                 },
-                () -> createOnce(principal, squareId, normalized));
+                () -> createOnce(principal, squareId, normalized),
+                cached -> replayCurrent(principal, cached));
     }
 
     private AssignmentView createOnce(AuthenticatedUser principal, String squareId,
@@ -93,12 +107,13 @@ public class AssignmentService {
         String id = java.util.UUID.randomUUID().toString();
         squareRepository.insertAssignment(id, squareId, normalized.name(), normalized.requirements(),
                 origin, confirmation, normalized.hardDueAt(), normalized.minMembers(),
-                normalized.maxMembers(), projectionService.referencesJson(normalized.references()));
+                normalized.maxMembers(), projectionService.referencesJson(normalized.references()),
+                principal.userId());
         auditService.record(principal.userId(), "ASSIGNMENT_CREATE", "ASSIGNMENT", id,
                 null, 1, null);
         AssignmentRow created = squareRepository.findAssignment(id)
                 .orElseThrow(() -> new IllegalStateException("刚创建的作业不可见"));
-        return projectionService.assignment(created);
+        return projectionService.assignment(created, principal.userId());
     }
 
     public AssignmentView confirm(AuthenticatedUser principal, String assignmentId,
@@ -111,9 +126,8 @@ public class AssignmentService {
         if (!squareService.isTeacherOf(square, principal.userId())) {
             throw new ApiException(ApiCode.FORBIDDEN);
         }
-        return idempotencyService.execute(
+        return idempotencyService.executeHistorical(
                 new IdempotencyRequest(principal, "POST", path, idempotencyKey, request, List.of()),
-                AssignmentView.class,
                 () -> {
                     policy.requireActiveBusinessUser(principal);
                     AssignmentRow current = squareRepository.findAssignment(assignmentId)
@@ -124,7 +138,8 @@ public class AssignmentService {
                         throw new ApiException(ApiCode.FORBIDDEN);
                     }
                 },
-                () -> confirmOnce(principal, assignmentId, request));
+                () -> confirmOnce(principal, assignmentId, request),
+                cached -> replayCurrent(principal, cached));
     }
 
     private AssignmentView confirmOnce(AuthenticatedUser principal, String assignmentId,
@@ -153,7 +168,79 @@ public class AssignmentService {
                 .orElseThrow(() -> new IllegalStateException("刚确认的作业不可见"));
         auditService.record(principal.userId(), "ASSIGNMENT_CONFIRM", "ASSIGNMENT", assignmentId,
                 row.revision(), confirmed.revision(), reason);
-        return projectionService.assignment(confirmed);
+        return projectionService.assignment(confirmed, principal.userId());
+    }
+
+    private AssignmentView editOnce(AuthenticatedUser principal, String assignmentId,
+                                    int expectedRevision, EditedAssignment edited) {
+        AssignmentRow row = squareRepository.lockAssignment(assignmentId)
+                .orElseThrow(ApiException::notFound);
+        squareService.requireReadableSquare(principal, row.squareId());
+        if (row.createdBy() == null || !row.createdBy().equals(principal.userId())) {
+            throw new ApiException(ApiCode.FORBIDDEN);
+        }
+        if (!"PENDING_CONFIRMATION".equals(row.confirmationStatus()) || !"STUDENT".equals(row.origin())) {
+            throw new ApiException(ApiCode.ASSIGNMENT_LOCKED);
+        }
+        if (row.revision() != expectedRevision) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
+        boolean constraintsChanged = !row.hardDueAt().equals(edited.hardDueAt())
+                || row.minMembers() != edited.minMembers()
+                || row.maxMembers() != edited.maxMembers();
+        if (constraintsChanged && squareRepository.assignmentInUse(assignmentId)) {
+            throw new ApiException(ApiCode.ASSIGNMENT_IN_USE);
+        }
+        int updated = squareRepository.updateAssignment(assignmentId, expectedRevision, edited.name(),
+                edited.requirements(), edited.hardDueAt(), edited.minMembers(), edited.maxMembers());
+        if (updated != 1) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
+        AssignmentRow saved = squareRepository.findAssignment(assignmentId)
+                .orElseThrow(() -> new IllegalStateException("刚保存的作业不可见"));
+        auditService.record(principal.userId(), "ASSIGNMENT_EDIT", "ASSIGNMENT", assignmentId,
+                row.revision(), saved.revision(), null);
+        return projectionService.assignment(saved, principal.userId());
+    }
+
+    private AssignmentView replayCurrent(AuthenticatedUser principal, JsonNode cached) {
+        String id = cached.path("id").asText("");
+        AssignmentRow row = squareRepository.findAssignment(id).orElseThrow(ApiException::notFound);
+        squareService.requireReadableSquare(principal, row.squareId());
+        return projectionService.assignment(row, principal.userId());
+    }
+
+    private AssignmentView replayEdit(AuthenticatedUser principal, JsonNode cached) {
+        String id = cached.path("id").asText("");
+        int savedRevision = cached.path("revision").asInt(-1);
+        AssignmentRow row = squareRepository.findAssignment(id).orElseThrow(ApiException::notFound);
+        squareService.requireReadableSquare(principal, row.squareId());
+        if (row.createdBy() == null || !row.createdBy().equals(principal.userId())) {
+            throw new ApiException(ApiCode.FORBIDDEN);
+        }
+        if (!"PENDING_CONFIRMATION".equals(row.confirmationStatus())) {
+            throw new ApiException(ApiCode.ASSIGNMENT_LOCKED);
+        }
+        if (row.revision() != savedRevision) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
+        return projectionService.assignment(row, principal.userId());
+    }
+
+    private EditedAssignment normalizeEdit(PatchAssignmentRequest request) {
+        String name = request.name().strip();
+        String requirements = request.requirements().strip();
+        if (name.isEmpty() || name.length() > 100) {
+            throw ApiException.validation("作业名必须为1～100个字符");
+        }
+        if (requirements.isEmpty() || requirements.length() > 10000) {
+            throw ApiException.validation("作业要求必须为1～10000个字符");
+        }
+        if (request.minMembers() > request.maxMembers()) {
+            throw ApiException.validation("团队人数范围无效");
+        }
+        return new EditedAssignment(name, requirements, request.hardDueAt(),
+                request.minMembers(), request.maxMembers());
     }
 
     private Relation relation(AuthenticatedUser principal, SquareRow square) {
@@ -227,6 +314,10 @@ public class AssignmentService {
         TEACHER,
         STUDENT,
         NONE
+    }
+
+    private record EditedAssignment(String name, String requirements, Instant hardDueAt,
+                                    int minMembers, int maxMembers) {
     }
 
     private record NormalizedAssignment(

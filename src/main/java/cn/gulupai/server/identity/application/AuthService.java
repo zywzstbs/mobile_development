@@ -98,16 +98,12 @@ public class AuthService {
         }
 
         UserRow user = found.get();
-        if (user.disabled()) {
-            throw new ApiException(ApiCode.ACCOUNT_DISABLED);
-        }
+        assertAccountCanLogin(user);
 
         SessionView session = transactionTemplate.execute(status -> {
             UserRow current = userRepository.findById(user.id())
                     .orElseThrow(() -> new ApiException(ApiCode.INVALID_CREDENTIALS));
-            if (current.disabled()) {
-                throw new ApiException(ApiCode.ACCOUNT_DISABLED);
-            }
+            assertAccountCanLogin(current);
             SessionView view = createSession(current, deviceLabel);
             rateLimitService.clearLoginFailures(subject);
             auditService.record(current.id(), "AUTH_LOGIN", "USER", current.id(),
@@ -128,7 +124,7 @@ public class AuthService {
             }
             UserRow user = userRepository.findById(row.userId())
                     .orElseThrow(() -> new ApiException(ApiCode.SESSION_EXPIRED));
-            if (user.disabled()) {
+            if (user.disabled() || !"ACTIVE".equals(user.accountStatus())) {
                 throw new ApiException(ApiCode.SESSION_EXPIRED);
             }
             Instant accessExpiresAt = now.plus(properties.getAccessTtl());
@@ -199,6 +195,18 @@ public class AuthService {
                 secondsUntil(now, accessExpiresAt),
                 refreshExpiresAt,
                 userProjectionService.toView(user));
+    }
+
+    private static void assertAccountCanLogin(UserRow user) {
+        if ("PENDING_REVIEW".equals(user.accountStatus())) {
+            throw new ApiException(ApiCode.ACCOUNT_PENDING_REVIEW);
+        }
+        if ("REJECTED".equals(user.accountStatus())) {
+            throw new ApiException(ApiCode.ACCOUNT_REJECTED);
+        }
+        if (user.disabled()) {
+            throw new ApiException(ApiCode.ACCOUNT_DISABLED);
+        }
     }
 
     private String normalizeDeviceLabel(String raw) {

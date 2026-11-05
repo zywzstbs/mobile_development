@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,6 +30,17 @@ public class AssignmentController {
             @AuthenticationPrincipal AuthenticatedUser principal,
             @PathVariable String assignmentId) {
         return ApiResponse.ok(assignmentService.get(principal, assignmentId));
+    }
+
+    @PatchMapping("/assignments/{assignmentId}")
+    public ApiResponse<AssignmentView> edit(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable String assignmentId,
+            @Valid @RequestBody PatchAssignmentRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.ok(assignmentService.edit(principal, assignmentId, request, idempotencyKey,
+                servletRequest.getRequestURI()));
     }
 
     @PostMapping("/assignments/{assignmentId}/confirmations")

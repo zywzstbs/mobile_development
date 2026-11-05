@@ -52,11 +52,21 @@ public final class NoticeViews {
     }
 
     public record Notification(String id, String sourceType, String sourceId, String category,
-                               String title, String body, int eventVersion, Instant visibleAt,
-                               Instant readAt, Instant createdAt) {
+                               String title, String body, int eventVersion, Integer sourceVersion,
+                               Instant visibleAt, Instant readAt, Instant createdAt) {
     }
 
-    public record Preferences(int revision, String channel, String chatDefault, String quietStart,
-                              String quietEnd, String timezone) {
+    public record QuietHours(boolean enabled, String start, String end) {
+    }
+
+    public record ProjectChatMode(String projectId, String mode) {
+    }
+
+    public record Preferences(int revision, String timezone, QuietHours quietHours,
+                              String courseNotices, String mentions, String supportReplies,
+                              String chatDefault, List<ProjectChatMode> projectChatModes) {
+        public Preferences {
+            projectChatModes = List.copyOf(projectChatModes);
+        }
     }
 }

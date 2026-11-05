@@ -6,6 +6,7 @@ import cn.gulupai.server.governance.MaterialTimeRecoveryAuditService;
 import cn.gulupai.server.governance.PersonnelCaseGrantAdminService;
 import cn.gulupai.server.support.HelpCatalogImportService;
 import cn.gulupai.server.support.OperatorGrantAdminService;
+import cn.gulupai.server.identity.application.RegistrationReviewService;
 import cn.gulupai.server.teaching.application.TeacherClaimReviewService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -19,7 +20,7 @@ import java.nio.file.Path;
 
 /**
  * 受控管理 CLI 入口：
- * {@code java -jar app.jar --spring.profiles.active=cli --app.cli.command=import-users|import-academic|review-teacher-claim|cleanup-plan|cleanup-cancel|help-import|operator-grant|personnel-case-grant|material-time-recovery|material-time-recovery-audit|demo-seed}
+ * {@code java -jar app.jar --spring.profiles.active=cli --app.cli.command=import-users|import-academic|review-teacher-claim|review-registration|list-registrations|school-registration|cleanup-plan|cleanup-cancel|help-import|operator-grant|personnel-case-grant|material-time-recovery|material-time-recovery-audit|demo-seed}
  */
 @Component
 @ConditionalOnProperty(prefix = "app.cli", name = "enabled", havingValue = "true")
@@ -36,6 +37,8 @@ public class AdminCliRunner implements ApplicationRunner {
     private final PersonnelCaseGrantAdminService personnelCaseGrantService;
     private final MaterialResponseTimeRecoveryService materialTimeRecoveryService;
     private final MaterialTimeRecoveryAuditService materialTimeRecoveryAuditService;
+    private final RegistrationReviewService registrationReviewService;
+    private final CliOperatorDirectory operatorDirectory;
     private final String command;
     private final String file;
     private final boolean dryRun;
@@ -52,6 +55,8 @@ public class AdminCliRunner implements ApplicationRunner {
                           PersonnelCaseGrantAdminService personnelCaseGrantService,
                           MaterialResponseTimeRecoveryService materialTimeRecoveryService,
                           MaterialTimeRecoveryAuditService materialTimeRecoveryAuditService,
+                          RegistrationReviewService registrationReviewService,
+                          CliOperatorDirectory operatorDirectory,
                           @Value("${app.cli.command:}") String command,
                           @Value("${app.cli.file:}") String file,
                           @Value("${app.cli.dry-run:false}") boolean dryRun,
@@ -67,6 +72,8 @@ public class AdminCliRunner implements ApplicationRunner {
         this.personnelCaseGrantService = personnelCaseGrantService;
         this.materialTimeRecoveryService = materialTimeRecoveryService;
         this.materialTimeRecoveryAuditService = materialTimeRecoveryAuditService;
+        this.registrationReviewService = registrationReviewService;
+        this.operatorDirectory = operatorDirectory;
         this.command = command;
         this.file = file;
         this.dryRun = dryRun;
@@ -89,7 +96,7 @@ public class AdminCliRunner implements ApplicationRunner {
         try {
             if (command == null || command.isBlank()) {
                 throw new IllegalArgumentException(
-                        "缺少 --app.cli.command；支持 import-users、import-academic、review-teacher-claim、cleanup-plan、cleanup-cancel、help-import、operator-grant、personnel-case-grant、material-time-recovery、material-time-recovery-audit、demo-seed");
+                        "缺少 --app.cli.command；支持 import-users、import-academic、review-teacher-claim、review-registration、list-registrations、school-registration、cleanup-plan、cleanup-cancel、help-import、operator-grant、personnel-case-grant、material-time-recovery、material-time-recovery-audit、demo-seed");
             }
             switch (command) {
                 case "import-users" -> {
@@ -107,6 +114,37 @@ public class AdminCliRunner implements ApplicationRunner {
                     AcademicImportService.ImportSummary summary =
                             academicImportService.importAcademic(Path.of(file), dryRun);
                     System.out.println(summary.describe());
+                }
+                case "list-registrations" -> registrationReviewService.pendingLines()
+                        .forEach(System.out::println);
+                case "review-registration" -> {
+                    rejectClaimedActor(args);
+                    String applicationId = option(args, "app.cli.application-id");
+                    String decision = option(args, "app.cli.decision");
+                    String reason = option(args, "app.cli.reason");
+                    String revisionText = option(args, "app.cli.expected-revision");
+                    if (applicationId.isBlank() || decision.isBlank() || revisionText.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "review-registration 需要 --app.cli.application-id、--app.cli.decision 和 --app.cli.expected-revision");
+                    }
+                    int revision = Integer.parseInt(revisionText);
+                    CliOperatorDirectory.Reviewer reviewer = operatorDirectory.requireCurrent();
+                    System.out.println(registrationReviewService.review(
+                            applicationId, revision, decision, reason)
+                            + " reviewer=" + reviewer.displayLabel());
+                }
+                case "school-registration" -> {
+                    rejectClaimedActor(args);
+                    String schoolId = option(args, "app.cli.school-id");
+                    String enabledText = option(args, "app.cli.enabled");
+                    if (schoolId.isBlank() || (!"true".equals(enabledText) && !"false".equals(enabledText))) {
+                        throw new IllegalArgumentException(
+                                "school-registration 需要 --app.cli.school-id 和 --app.cli.enabled=true|false");
+                    }
+                    CliOperatorDirectory.Reviewer reviewer = operatorDirectory.requireCurrent();
+                    System.out.println(registrationReviewService.setSchoolOpen(
+                            schoolId, Boolean.parseBoolean(enabledText))
+                            + " reviewer=" + reviewer.displayLabel());
                 }
                 case "review-teacher-claim" -> {
                     String claimId = args.getOptionValues("app.cli.claim-id") == null
@@ -231,5 +269,11 @@ public class AdminCliRunner implements ApplicationRunner {
 
     private static String option(ApplicationArguments args, String name) {
         return args.getOptionValues(name) == null ? "" : args.getOptionValues(name).getFirst();
+    }
+
+    private static void rejectClaimedActor(ApplicationArguments args) {
+        if (args.containsOption("app.cli.actor")) {
+            throw new IllegalArgumentException("不能通过 app.cli.actor 指定审核人");
+        }
     }
 }

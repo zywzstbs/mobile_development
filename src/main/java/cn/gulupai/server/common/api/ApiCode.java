@@ -24,6 +24,9 @@ public enum ApiCode {
 
     // ---- 403 授权 ----
     ACCOUNT_DISABLED(HttpStatus.FORBIDDEN, "账号已停用"),
+    ACCOUNT_PENDING_REVIEW(HttpStatus.FORBIDDEN, "账号正在审核，通过后才能登录"),
+    ACCOUNT_REJECTED(HttpStatus.FORBIDDEN, "注册申请未通过"),
+    REGISTRATION_DISABLED(HttpStatus.FORBIDDEN, "当前未开放注册"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "无权执行此操作"),
     RECUSAL_REQUIRED(HttpStatus.FORBIDDEN, "该操作需要回避"),
     SELF_REVIEW_FORBIDDEN(HttpStatus.FORBIDDEN, "不能验收本人参与的交付"),
@@ -44,6 +47,9 @@ public enum ApiCode {
     ALREADY_IN_ASSIGNMENT_TEAM(HttpStatus.CONFLICT, "已加入该作业的团队"),
     INVITATION_EXPIRED(HttpStatus.CONFLICT, "邀请已失效"),
     APPLICATION_EXISTS(HttpStatus.CONFLICT, "申请已存在"),
+    ACCOUNT_EXISTS(HttpStatus.CONFLICT, "账号已存在"),
+    ASSIGNMENT_LOCKED(HttpStatus.CONFLICT, "作业已确认，不能再修改"),
+    ASSIGNMENT_IN_USE(HttpStatus.CONFLICT, "已有小组使用该作业，不能修改截止时间或人数"),
     DEPENDENCY_BLOCKED(HttpStatus.CONFLICT, "前置任务尚未完成"),
     AGREEMENT_REQUIRED(HttpStatus.CONFLICT, "尚未确认正式约定"),
     SUBMISSION_ALREADY_REVIEWED(HttpStatus.CONFLICT, "提交已验收"),

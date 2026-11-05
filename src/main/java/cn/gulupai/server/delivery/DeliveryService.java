@@ -144,7 +144,7 @@ public class DeliveryService {
 
     public TaskFacts facts(TaskRow task) {
         if (!"ASSESSED".equals(task.mode())) {
-            return new TaskFacts(List.of(), Map.of(), null, null);
+            return new TaskFacts(List.of(), Map.of(), null, null, null);
         }
         List<UnitRow> units = deliveries.units(task.id());
         AgreementRow current = currentAgreement(task.id());
@@ -176,7 +176,7 @@ public class DeliveryService {
                 arrangement.userId(), name(arrangement.userId()), arrangement.kind(), arrangement.status(),
                 arrangement.version());
         return new TaskFacts(views, reviewer, current == null ? null : current.status(),
-                current == null ? null : current.version());
+                current == null ? null : current.version(), current == null ? null : current.id());
     }
 
     public boolean canStart(String userId, TaskRow task) {
@@ -1965,7 +1965,7 @@ public class DeliveryService {
     }
 
     public record TaskFacts(List<TaskViews.UnitView> units, Object reviewerAssignment, String agreementStatus,
-                            Integer agreementVersion) {
+                            Integer agreementVersion, String agreementId) {
     }
 
     public record StoredPlan(String ownerId, String dueAt, List<StoredUnit> units, StoredPolicy reviewerPolicy) {

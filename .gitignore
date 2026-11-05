@@ -5,3 +5,8 @@ target/
 .idea/
 *.iml
 .DS_Store
+deploy/letsencrypt/
+deploy/acme-webroot/
+deploy/images.lock.env
+deploy/compose.lock.yml
+docs/frontend/private/

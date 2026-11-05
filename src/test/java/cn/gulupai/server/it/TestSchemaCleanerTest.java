@@ -24,9 +24,15 @@ class TestSchemaCleanerTest {
     }
 
     @Test
-    void listWithoutParentsIsUnchanged() {
+    void registrationIsDeletedBeforeUserAndSchoolAndReceiptIsNotImplied() {
         assertThat(TestSchemaCleaner.order(List.of("school", "app_user")))
-                .containsExactly("school", "app_user");
+                .containsExactly("registration_application", "app_user", "school");
+        assertThat(TestSchemaCleaner.order(List.of("app_user")))
+                .containsExactly("registration_application", "app_user");
+        assertThat(TestSchemaCleaner.order(List.of("school")))
+                .containsExactly("registration_application", "app_user", "school");
+        assertThat(TestSchemaCleaner.order(List.of("audit_event", "rate_window")))
+                .containsExactly("audit_event", "rate_window");
     }
 
     private static int index(List<String> ordered, String table) {

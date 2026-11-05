@@ -46,13 +46,15 @@ public class NoticeOutboxWorker {
                     for (JsonNode mention : payload.path("mentions")) {
                         String userId = mention.asText();
                         if (userId.isBlank()) continue;
+                        Integer sourceVersion = payload.path("sourceVersion").isNumber()
+                                ? payload.path("sourceVersion").intValue() : null;
                         jdbc.update("""
                                 INSERT INTO notification(id, user_id, source_type, source_id, category,
-                                    title, body, event_version, visible_at, created_at)
-                                VALUES (?, ?, 'CHAT_MESSAGE', ?, 'TEAM_MENTION', ?, '', 1, ?, ?)
+                                    title, body, event_version, source_version, visible_at, created_at)
+                                VALUES (?, ?, 'CHAT_MESSAGE', ?, 'TEAM_MENTION', ?, '', 1, ?, ?, ?)
                                 ON CONFLICT (user_id, source_type, source_id, event_version) DO NOTHING
                                 """, UUID.randomUUID().toString(), userId, messageId,
-                                "有人在团队聊天中提到了你", now(), now());
+                                "有人在团队聊天中提到了你", sourceVersion, now(), now());
                     }
                 } catch (Exception ignored) {
                     // malformed outbox rows remain pending for inspection; no partial notification is written

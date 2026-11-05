@@ -15,6 +15,7 @@ public record AssignmentRow(
         boolean gradingEnabled,
         String sourceReferencesJson,
         int revision,
-        Instant createdAt
+        Instant createdAt,
+        String createdBy
 ) {
 }

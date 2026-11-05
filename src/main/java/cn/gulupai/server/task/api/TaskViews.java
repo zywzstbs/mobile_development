@@ -51,7 +51,8 @@ public final class TaskViews {
             int revision,
             boolean claimable,
             @JsonInclude(JsonInclude.Include.NON_NULL) String agreementStatus,
-            @JsonInclude(JsonInclude.Include.NON_NULL) Integer agreementVersion
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer agreementVersion,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String agreementId
     ) {
     }
 

@@ -54,7 +54,11 @@ public class CourseProjectionService {
                 membershipStatus == null ? "NONE" : membershipStatus);
     }
 
-    public AssignmentView assignment(AssignmentRow row) {
+    public AssignmentView assignment(AssignmentRow row, String viewerId) {
+        boolean canEdit = viewerId != null
+                && viewerId.equals(row.createdBy())
+                && "STUDENT".equals(row.origin())
+                && "PENDING_CONFIRMATION".equals(row.confirmationStatus());
         return new AssignmentView(
                 row.id(),
                 row.squareId(),
@@ -67,7 +71,9 @@ public class CourseProjectionService {
                 row.maxMembers(),
                 row.gradingEnabled(),
                 row.revision(),
-                references(row.sourceReferencesJson()));
+                references(row.sourceReferencesJson()),
+                row.createdBy(),
+                canEdit);
     }
 
     public TermView term(TermRow row, String timezone) {

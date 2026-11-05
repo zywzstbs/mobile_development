@@ -41,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -415,6 +416,8 @@ class CourseP02IT {
         JsonNode assignment = createAssignment(student, square.get("id").asText(),
                 assignmentBody(), "p02-assignment-key-1");
         assertThat(assignment.get("origin").asText()).isEqualTo("STUDENT");
+        assertThat(assignment.get("createdBy").asText()).isEqualTo("user_demo_student_01");
+        assertThat(assignment.get("canEdit").asBoolean()).isTrue();
         assertThat(assignment.get("confirmationStatus").asText()).isEqualTo("PENDING_CONFIRMATION");
         assertThat(assignment.get("gradingEnabled").asBoolean()).isFalse();
         assertThat(assignment.get("revision").asInt()).isEqualTo(1);
@@ -453,6 +456,83 @@ class CourseP02IT {
                         .header("Authorization", bearer(student)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.confirmationStatus").value("CONFIRMED"));
+    }
+
+    @Test
+    void studentCanEditPendingAssignmentUntilConfirmedOrUsed() throws Exception {
+        String student = login("student_demo_01", "demo-password-01");
+        String other = login("student_demo_02", "demo-password-02");
+        JsonNode square = createSquare(student, "period_demo_2", MOBILE_COURSE,
+                match(student, "period_demo_2", MOBILE_COURSE).get("candidateCheckToken").asText(),
+                "p62-edit-square");
+        JsonNode assignment = createAssignment(student, square.get("id").asText(),
+                assignmentBody(), "p62-edit-create");
+        String id = assignment.get("id").asText();
+        String body = objectMapper.writeValueAsString(Map.of(
+                "expectedRevision", 1,
+                "name", "修正后的作业名称",
+                "requirements", "修正后的任务书要求",
+                "hardDueAt", "2026-12-30T15:59:59Z",
+                "minMembers", 2,
+                "maxMembers", 5));
+        mockMvc.perform(patch("/api/v1/assignments/{id}", id)
+                        .header("Authorization", bearer(other))
+                        .header("Idempotency-Key", "p62-edit-other")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/api/v1/assignments/{id}", id)
+                        .header("Authorization", bearer(student))
+                        .header("Idempotency-Key", "p62-edit-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(id))
+                .andExpect(jsonPath("$.data.name").value("修正后的作业名称"))
+                .andExpect(jsonPath("$.data.revision").value(2))
+                .andExpect(jsonPath("$.data.canEdit").value(true))
+                .andExpect(jsonPath("$.data.createdBy").value("user_demo_student_01"));
+        mockMvc.perform(patch("/api/v1/assignments/{id}", id)
+                        .header("Authorization", bearer(student))
+                        .header("Idempotency-Key", "p62-edit-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.revision").value(2))
+                .andExpect(jsonPath("$.data.name").value("修正后的作业名称"));
+
+        String project = objectMapper.writeValueAsString(Map.of(
+                "squareId", square.get("id").asText(), "assignmentId", id,
+                "mode", "QUICK", "name", "占用组", "capacity", 3, "roles", List.of()));
+        mockMvc.perform(post("/api/v1/projects")
+                        .header("Authorization", bearer(student))
+                        .header("Idempotency-Key", "p62-edit-project")
+                        .contentType(MediaType.APPLICATION_JSON).content(project))
+                .andExpect(status().isOk());
+        String constrained = objectMapper.writeValueAsString(Map.of(
+                "expectedRevision", 2,
+                "name", "只改文字",
+                "requirements", "人数不变",
+                "hardDueAt", "2026-12-30T16:59:59Z",
+                "minMembers", 2,
+                "maxMembers", 4));
+        mockMvc.perform(patch("/api/v1/assignments/{id}", id)
+                        .header("Authorization", bearer(student))
+                        .header("Idempotency-Key", "p62-edit-constraint")
+                        .contentType(MediaType.APPLICATION_JSON).content(constrained))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ASSIGNMENT_IN_USE"));
+        String textOnly = objectMapper.writeValueAsString(Map.of(
+                "expectedRevision", 2,
+                "name", "只改文字",
+                "requirements", "人数不变",
+                "hardDueAt", "2026-12-30T15:59:59Z",
+                "minMembers", 2,
+                "maxMembers", 5));
+        mockMvc.perform(patch("/api/v1/assignments/{id}", id)
+                        .header("Authorization", bearer(student))
+                        .header("Idempotency-Key", "p62-edit-text")
+                        .contentType(MediaType.APPLICATION_JSON).content(textOnly))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("只改文字"))
+                .andExpect(jsonPath("$.data.revision").value(3));
     }
 
     @Test

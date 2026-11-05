@@ -6,6 +6,10 @@ spring:
 app:
   cli:
     enabled: true
+    # 注册审核不读取 app.cli.actor，也不读取这里的 operators。
+    # 映射只在 classpath:cli-operators.yml。命令行、系统属性和环境变量不能临时覆盖。
+    # 身份是进程的操作系统有效用户。多人共用一个运维系统账户时，应用只能证明该账户
+    # 执行了审核，具体人员以主机 sudo / 登录审计日志为准。
   environment: cli
   idempotency:
     encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:bG9jYWwtZGV2LW9ubHkta2V5LTAxMjM0NTY3ODlhYmM=}

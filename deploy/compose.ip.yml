@@ -1,0 +1,11 @@
+# docker compose -f compose.yml -f compose.ip.yml ...
+services:
+  app:
+    environment:
+      APP_ENV: prod
+      IDEMPOTENCY_KEY_ID: ip-server-v1
+  proxy:
+    volumes:
+      - ./Caddyfile.ip:/etc/caddy/Caddyfile:ro
+      - ./letsencrypt:/etc/letsencrypt:ro
+      - ./acme-webroot:/srv/acme:ro

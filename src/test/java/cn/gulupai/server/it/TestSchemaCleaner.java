@@ -27,7 +27,12 @@ public final class TestSchemaCleaner {
             {"topic_follow", "board_topic"},
             {"file_reference", "stored_file"},
             {"file_authorization", "stored_file"},
-            {"cleanup_plan", "stored_file"}
+            {"cleanup_plan", "stored_file"},
+            // registration_application.user_id、school_id 分别引用 app_user、school。
+            // registration_receipt 没有外键，不能当成 app_user 的子表自动插入。
+            {"registration_application", "app_user"},
+            {"registration_application", "school"},
+            {"app_user", "school"}
     };
 
     private TestSchemaCleaner() {

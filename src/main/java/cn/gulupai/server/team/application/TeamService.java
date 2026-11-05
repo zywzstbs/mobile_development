@@ -119,6 +119,13 @@ public class TeamService {
     private TeamViews.ProjectView createProjectOnce(AuthenticatedUser principal, SquareRow square,
                                                     TeamRepository.AssignmentBrief assignment,
                                                     PreparedProject prepared) {
+        TeamRepository.AssignmentBrief locked = repo.lockAssignment(assignment.id());
+        if (locked == null || !locked.squareId().equals(square.id())) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
+        if (prepared.capacity() < locked.minMembers() || prepared.capacity() > locked.maxMembers()) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
         if (repo.assignmentSlot(assignment.id(), principal.userId())) {
             throw new ApiException(ApiCode.ALREADY_IN_ASSIGNMENT_TEAM);
         }

@@ -38,7 +38,9 @@ public class SupportTicketAccess {
     }
 
     public boolean accountActive(String userId) {
-        return userId != null && users.findById(userId).filter(user -> !user.disabled()).isPresent();
+        return userId != null && users.findById(userId)
+                .filter(user -> !user.disabled() && "ACTIVE".equals(user.accountStatus()))
+                .isPresent();
     }
 
     public void requireReadable(AuthenticatedUser principal, Map<String, Object> ticket) {

@@ -580,7 +580,8 @@ public class TaskService {
         return new TaskViews.TaskView(task.id(), task.projectId(), task.title(), task.description(),
                 task.mode(), task.stageId(), task.ownerId(), ownerName, task.status(), task.dueAt(),
                 criteria, facts.units(), dependencies, facts.reviewerAssignment(), task.revision(), claimable,
-                facts.agreementStatus(), facts.agreementVersion());
+                facts.agreementStatus(), facts.agreementVersion(),
+                "ASSESSED".equals(task.mode()) ? facts.agreementId() : null);
     }
 
     private TaskViews.TaskView createAssessed(AuthenticatedUser principal, ProjectRow project, String projectId,

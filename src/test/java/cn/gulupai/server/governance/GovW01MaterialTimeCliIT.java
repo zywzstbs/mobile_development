@@ -109,7 +109,7 @@ class GovW01MaterialTimeCliIT extends W01MaterialTimeSupport {
 
     private AdminCliRunner cli(String command, boolean dryRun) {
         return new AdminCliRunner(null, null, null, null, null, null, null, null, null,
-                recoveryService, auditService, command, "", dryRun, "cli-test");
+                recoveryService, auditService, null, null, command, "", dryRun, "cli-test");
     }
 
     private Output runCli(AdminCliRunner runner, String... args) {

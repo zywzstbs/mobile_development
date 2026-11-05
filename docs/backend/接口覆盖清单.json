@@ -1,6 +1,6 @@
 {
   "sourceSha256": "8eb3173c599fc5c970fb4a43a78aa9d1d61ecd027ee4b068e38c08ee7dac1ae4",
-  "interfaceCount": 281,
+  "interfaceCount": 284,
   "items": [
     {
       "id": "AUTH-01",
@@ -49,6 +49,18 @@
       "route": "GET /me",
       "status": "后端验证通过",
       "evidence": "AuthP01IT"
+    },
+    {
+      "id": "AUTH-09",
+      "route": "GET /auth/registration-options",
+      "status": "后端验证通过",
+      "evidence": "RegistrationP62IT"
+    },
+    {
+      "id": "AUTH-10",
+      "route": "POST /auth/registrations",
+      "status": "后端验证通过",
+      "evidence": "RegistrationP62IT"
     },
     {
       "id": "COURSE-01",
@@ -181,6 +193,12 @@
       "route": "POST /square-membership-requests/{requestId}/decisions",
       "status": "后端验证通过",
       "evidence": "TeachingP02BIT"
+    },
+    {
+      "id": "COURSE-23",
+      "route": "PATCH /assignments/{assignmentId}",
+      "status": "后端验证通过",
+      "evidence": "CourseP02IT"
     },
     {
       "id": "TEAM-01",

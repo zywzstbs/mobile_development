@@ -16,6 +16,7 @@ import cn.gulupai.server.community.persistence.ChatRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -157,19 +158,21 @@ public class ChatService {
         }
         validateRefs(projectId, request.refs());
         validateMentions(projectId, request.mentions());
-        String requestHash = requestHash(request);
+        String replyToId = normalizeReply(projectId, request.replyToId());
+        String requestHash = requestHash(request, replyToId);
         return idempotency.execute(request(principal, "POST", path, key, request),
                 ChatViews.Message.class,
                 () -> requireReadAccess(projectId, principal.userId()),
                 () -> {
                     requireWritable(projectId, principal.userId());
-                    return sendOnce(principal, projectId, request, content, requestHash);
+                    return sendOnce(principal, projectId, request, content, requestHash, replyToId);
                 },
                 cached -> currentMessage(cached.id(), projectId));
     }
 
     private ChatViews.Message sendOnce(AuthenticatedUser principal, String projectId,
-                                       ChatRequests.Send request, String content, String requestHash) {
+                                       ChatRequests.Send request, String content, String requestHash,
+                                       String replyToId) {
         // 先取项目计数器行锁，使同项目发送串行；唯一约束仍是最终防线。
         repo.lockCounter(projectId);
         ChatRepository.MessageRow existing = repo.byClientId(projectId, principal.userId(),
@@ -191,14 +194,19 @@ public class ChatService {
         String id = UUID.randomUUID().toString();
         try {
             repo.insertMessage(id, projectId, sequence, request.clientMessageId(), principal.userId(),
-                    content, writeRefs(request.refs()), writeMentions(request.mentions()), requestHash, now);
+                    content, writeRefs(request.refs()), writeMentions(request.mentions()), requestHash,
+                    replyToId == null ? 1 : 2, replyToId, now);
         } catch (DataIntegrityViolationException ex) {
+            if (!isClientMessageUniqueViolation(ex)) {
+                throw ex;
+            }
             throw new ApiException(ApiCode.CLIENT_MESSAGE_ID_REUSED);
         }
         long change = repo.nextChangeSequence(projectId);
         repo.insertChange(UUID.randomUUID().toString(), projectId, change, id, 1, now);
+        ChatRepository.MessageRow saved = repo.message(id).orElseThrow();
         repo.outbox(UUID.randomUUID().toString(), projectId, "CHAT_MESSAGE_SENT",
-                write(Map.of("messageId", id, "sequence", sequence,
+                write(Map.of("messageId", id, "sequence", sequence, "sourceVersion", saved.revision(),
                         "mentions", request.mentions() == null ? List.of() : request.mentions())), now);
         audit.record(principal.userId(), "CHAT_SEND", "CHAT_MESSAGE", id, null, 1, null);
         return view(repo.message(id).orElseThrow());
@@ -353,6 +361,19 @@ public class ChatService {
         return view(row);
     }
 
+    /**
+     * 只有客户端消息唯一键冲突才表示 clientMessageId 被占用。
+     * 检查约束、外键和其他唯一键必须原样抛出，不能伪装成消息标识重用。
+     */
+    static boolean isClientMessageUniqueViolation(DataIntegrityViolationException ex) {
+        if (!(ex instanceof DuplicateKeyException)) {
+            return false;
+        }
+        Throwable cause = ex.getMostSpecificCause();
+        String text = cause == null || cause.getMessage() == null ? "" : cause.getMessage();
+        return text.contains("uq_chat_client_message");
+    }
+
     private String requestHash(ChatRequests.Send request) {
         List<Map<String, Object>> refs = new ArrayList<>();
         if (request.refs() != null) {
@@ -367,17 +388,46 @@ public class ChatService {
         List<String> mentions = request.mentions() == null ? List.of()
                 : new ArrayList<>(new LinkedHashSet<>(request.mentions()));
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("requestHashVersion", 1);
+        String replyToId = request.replyToId() == null || request.replyToId().isBlank()
+                ? null : request.replyToId();
+        payload.put("requestHashVersion", replyToId == null ? 1 : 2);
         payload.put("content", request.content());
         payload.put("refs", refs);
         payload.put("mentions", mentions);
+        if (replyToId != null) {
+            payload.put("replyToId", replyToId);
+        }
         return canonicalJson.hash(payload);
+    }
+
+    private String requestHash(ChatRequests.Send request, String replyToId) {
+        return requestHash(copyReply(request, replyToId));
+    }
+
+    private static ChatRequests.Send copyReply(ChatRequests.Send request, String replyToId) {
+        return new ChatRequests.Send(request.clientMessageId(), request.content(), request.refs(),
+                request.mentions(), replyToId);
+    }
+
+    private String normalizeReply(String projectId, String replyToId) {
+        if (replyToId == null || replyToId.isBlank()) {
+            return null;
+        }
+        if (!replyToId.matches("[A-Za-z0-9_-]{1,120}")) {
+            throw ApiException.validation("replyToId 格式无效");
+        }
+        ChatRepository.MessageRow target = repo.message(replyToId)
+                .orElseThrow(() -> ApiException.validation("回复对象不存在或当前不可见"));
+        if (!projectId.equals(target.projectId())) {
+            throw ApiException.validation("replyToId 必须是同一项目中的消息");
+        }
+        return replyToId;
     }
 
     private ChatViews.Message view(ChatRepository.MessageRow row) {
         return new ChatViews.Message(row.id(), row.projectId(), row.clientMessageId(),
                 row.sequence(), row.authorId(), row.authorName(),
-                row.withdrawn() ? null : row.content(), null,
+                row.withdrawn() ? null : row.content(), row.replyToId(),
                 row.withdrawn() ? List.of() : readStrings(row.mentionsJson()),
                 row.withdrawn() ? List.of() : readRefs(row.refsJson()), row.revision(),
                 row.withdrawn(), row.createdAt());

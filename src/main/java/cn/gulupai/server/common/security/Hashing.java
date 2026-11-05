@@ -1,7 +1,10 @@
 package cn.gulupai.server.common.security;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -27,6 +30,16 @@ public final class Hashing {
 
     public static String sha256Hex(String value) {
         return sha256Hex(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static String hmacSha256Hex(String secret, String value) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException | InvalidKeyException ex) {
+            throw new IllegalStateException("HMAC-SHA256 不可用", ex);
+        }
     }
 
     public static String sha256Hex(byte[] value) {

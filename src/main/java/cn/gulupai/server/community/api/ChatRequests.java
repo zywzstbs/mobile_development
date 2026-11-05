@@ -23,7 +23,8 @@ public final class ChatRequests {
             @NotBlank @Size(max = 128) String clientMessageId,
             @Utf16Length(max = 1000) String content,
             @Size(max = 5) List<@Valid RefInput> refs,
-            @Size(max = 20) List<@NotBlank String> mentions
+            @Size(max = 20) List<@NotBlank String> mentions,
+            @Utf16Length(max = 120) String replyToId
     ) {
     }
 

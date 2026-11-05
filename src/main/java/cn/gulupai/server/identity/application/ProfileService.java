@@ -2,6 +2,7 @@ package cn.gulupai.server.identity.application;
 
 import cn.gulupai.server.common.api.ApiCode;
 import cn.gulupai.server.common.api.ApiException;
+import cn.gulupai.server.common.api.FieldErrorDetail;
 import cn.gulupai.server.common.audit.AuditService;
 import cn.gulupai.server.common.idempotency.IdempotencyRequest;
 import cn.gulupai.server.common.idempotency.IdempotencyService;
@@ -206,39 +207,51 @@ public class ProfileService {
     }
 
     private NormalizedProfile normalize(ProfileUpdateRequest request) {
-        String displayName = request.displayName().strip();
-        if (displayName.isEmpty()) {
-            throw ApiException.validation("显示名不能为空");
-        }
-        if (displayName.length() > 80) {
-            throw ApiException.validation("显示名不能超过80个字符");
-        }
-        if (request.skills().size() > 12) {
-            throw ApiException.validation("技能最多12项");
+        List<FieldErrorDetail> errors = new ArrayList<>();
+        String displayName = request.displayName() == null ? "" : request.displayName().strip();
+        if (displayName.isEmpty() || displayName.length() > 24) {
+            errors.add(new FieldErrorDetail("displayName",
+                    displayName.isEmpty() ? "REQUIRED" : "TOO_LONG",
+                    displayName.isEmpty() ? "请填写此项" : "超出长度限制"));
         }
         List<String> skills = new ArrayList<>();
-        for (String skill : request.skills()) {
-            String value = skill == null ? "" : skill.strip();
-            if (value.isEmpty()) {
-                throw ApiException.validation("技能不能为空");
+        if (request.skills() == null) {
+            errors.add(new FieldErrorDetail("skills", "REQUIRED", "请填写此项"));
+        } else if (request.skills().size() > 8) {
+            errors.add(new FieldErrorDetail("skills", "TOO_LONG", "超出长度限制"));
+        } else {
+            for (int i = 0; i < request.skills().size(); i++) {
+                String raw = request.skills().get(i);
+                String value = raw == null ? "" : raw.strip();
+                if (value.isEmpty() || value.length() > 20) {
+                    errors.add(new FieldErrorDetail("skills[" + i + "]",
+                            value.isEmpty() ? "REQUIRED" : "TOO_LONG",
+                            value.isEmpty() ? "请填写此项" : "超出长度限制"));
+                } else if (skills.contains(value)) {
+                    errors.add(new FieldErrorDetail("skills[" + i + "]", "DUPLICATE", "存在重复项"));
+                } else {
+                    skills.add(value);
+                }
             }
-            if (value.length() > 80) {
-                throw ApiException.validation("单个技能不能超过80个字符");
-            }
-            skills.add(value);
         }
-        int weeklyHours = request.weeklyHours();
-        if (weeklyHours < 0 || weeklyHours > 168) {
-            throw ApiException.validation("每周可投入小时必须在0～168之间");
+        int weeklyHours = request.weeklyHours() == null ? -1 : request.weeklyHours();
+        if (weeklyHours < 0 || weeklyHours > 60) {
+            errors.add(new FieldErrorDetail("weeklyHours", "OUT_OF_RANGE", "每周投入时间需为0至60小时"));
         }
         String availability = request.availability() == null ? "" : request.availability().strip();
-        String collaborationGoal = request.collaborationGoal().strip();
-        if (collaborationGoal.isEmpty()) {
-            throw ApiException.validation("协作目标不能为空");
-        }
+        String collaborationGoal = request.collaborationGoal() == null ? "" : request.collaborationGoal().strip();
         String intro = request.intro() == null ? "" : request.intro().strip();
-        if (availability.length() > 2000 || collaborationGoal.length() > 2000 || intro.length() > 2000) {
-            throw ApiException.validation("资料文本不能超过2000个字符");
+        if (availability.length() > 180) {
+            errors.add(new FieldErrorDetail("availability", "TOO_LONG", "超出长度限制"));
+        }
+        if (collaborationGoal.length() > 180) {
+            errors.add(new FieldErrorDetail("collaborationGoal", "TOO_LONG", "超出长度限制"));
+        }
+        if (intro.length() > 300) {
+            errors.add(new FieldErrorDetail("intro", "TOO_LONG", "超出长度限制"));
+        }
+        if (!errors.isEmpty()) {
+            throw ApiException.fields(errors);
         }
         return new NormalizedProfile(request.expectedRevision(), displayName, skills,
                 weeklyHours, availability, collaborationGoal, intro);

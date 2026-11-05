@@ -1,0 +1,4 @@
+operators:
+  - os-user: __TRUSTED_OS_USER__
+    subject-id: user_demo_teacher_01
+    display-label: 测试环境审核员

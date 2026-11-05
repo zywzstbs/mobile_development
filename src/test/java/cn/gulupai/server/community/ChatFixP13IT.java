@@ -329,6 +329,72 @@ class ChatFixP13IT {
                 .andExpect(jsonPath("$.code").value("CLIENT_MESSAGE_ID_REUSED"));
     }
 
+    @Test
+    void replyIsStoredReadBackAndConflictsWhenTargetChanges() throws Exception {
+        String leader = login("student_demo_01", "demo-password-01");
+        String member = login("student_demo_02", "demo-password-02");
+        String projectId = project(leader, member, "reply-store");
+        JsonNode root = data(mockMvc.perform(post("/api/v1/projects/{id}/chat-messages", projectId)
+                        .header("Authorization", bearer(leader)).header("Idempotency-Key", "reply-root")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"clientMessageId\":\"reply-root\",\"content\":\"原消息\",\"refs\":[],\"mentions\":[]}"))
+                .andExpect(status().isOk()).andReturn());
+        String rootId = root.path("id").asText();
+        String replyBody = """
+                {"clientMessageId":"reply-1","content":"回复正文","refs":[],"mentions":[],"replyToId":"%s"}
+                """.formatted(rootId);
+        JsonNode reply = data(mockMvc.perform(post("/api/v1/projects/{id}/chat-messages", projectId)
+                        .header("Authorization", bearer(leader)).header("Idempotency-Key", "reply-send")
+                        .contentType(MediaType.APPLICATION_JSON).content(replyBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyToId").value(rootId))
+                .andExpect(jsonPath("$.data.content").value("回复正文"))
+                .andReturn());
+        String replyId = reply.path("id").asText();
+        Map<String, Object> stored = jdbc.queryForMap(
+                "SELECT reply_to_id, request_hash_version FROM chat_message WHERE id = ?", replyId);
+        assertThat(stored.get("reply_to_id")).isEqualTo(rootId);
+        assertThat(((Number) stored.get("request_hash_version")).intValue()).isEqualTo(2);
+
+        JsonNode page = data(mockMvc.perform(get("/api/v1/projects/{id}/chat-messages", projectId)
+                        .header("Authorization", bearer(member)))
+                .andExpect(status().isOk()).andReturn());
+        JsonNode readBack = null;
+        for (JsonNode item : page.path("items")) {
+            if (replyId.equals(item.path("id").asText())) {
+                readBack = item;
+            }
+        }
+        assertThat(readBack).isNotNull();
+        assertThat(readBack.path("replyToId").asText()).isEqualTo(rootId);
+        assertThat(readBack.path("content").asText()).isEqualTo("回复正文");
+
+        mockMvc.perform(post("/api/v1/projects/{id}/chat-messages", projectId)
+                        .header("Authorization", bearer(leader)).header("Idempotency-Key", "reply-retry")
+                        .contentType(MediaType.APPLICATION_JSON).content(replyBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(replyId))
+                .andExpect(jsonPath("$.data.replyToId").value(rootId));
+        assertThat(count("chat_message", projectId)).isEqualTo(2);
+
+        JsonNode other = data(mockMvc.perform(post("/api/v1/projects/{id}/chat-messages", projectId)
+                        .header("Authorization", bearer(leader)).header("Idempotency-Key", "reply-other")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"clientMessageId\":\"reply-other\",\"content\":\"另一条\",\"refs\":[],\"mentions\":[]}"))
+                .andExpect(status().isOk()).andReturn());
+        mockMvc.perform(post("/api/v1/projects/{id}/chat-messages", projectId)
+                        .header("Authorization", bearer(leader)).header("Idempotency-Key", "reply-conflict")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"clientMessageId":"reply-1","content":"回复正文","refs":[],"mentions":[],"replyToId":"%s"}
+                                """.formatted(other.path("id").asText())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CLIENT_MESSAGE_ID_REUSED"));
+        assertThat(count("chat_message", projectId)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT reply_to_id FROM chat_message WHERE id = ?", String.class, replyId))
+                .isEqualTo(rootId);
+    }
+
     // ---- R05：有界变更同步与游标绑定 ----
 
     @Test

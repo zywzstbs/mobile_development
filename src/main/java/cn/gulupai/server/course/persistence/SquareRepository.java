@@ -50,7 +50,8 @@ public class SquareRepository {
             rs.getBoolean("grading_enabled"),
             rs.getString("source_references_json"),
             rs.getInt("revision"),
-            rs.getObject("created_at", OffsetDateTime.class).toInstant());
+            rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+            rs.getString("created_by"));
 
     public SquareRepository(JdbcTemplate jdbcTemplate, Clock clock) {
         this.jdbcTemplate = jdbcTemplate;
@@ -248,7 +249,7 @@ public class SquareRepository {
         return jdbcTemplate.query("""
                 SELECT id, square_id, name, requirements, origin, confirmation_status, hard_due_at,
                        min_members, max_members, grading_enabled,
-                       source_references_json::text AS source_references_json, revision, created_at
+                       source_references_json::text AS source_references_json, revision, created_at, created_by
                 FROM assignment WHERE square_id = ? ORDER BY created_at, id
                 """, assignmentMapper, squareId);
     }
@@ -257,7 +258,7 @@ public class SquareRepository {
         return jdbcTemplate.query("""
                         SELECT id, square_id, name, requirements, origin, confirmation_status, hard_due_at,
                                min_members, max_members, grading_enabled,
-                               source_references_json::text AS source_references_json, revision, created_at
+                               source_references_json::text AS source_references_json, revision, created_at, created_by
                         FROM assignment WHERE id = ?
                         """, assignmentMapper, id)
                 .stream().findFirst();
@@ -265,15 +266,47 @@ public class SquareRepository {
 
     public void insertAssignment(String id, String squareId, String name, String requirements,
                                  String origin, String confirmationStatus, Instant hardDueAt,
-                                 int minMembers, int maxMembers, String sourceReferencesJson) {
+                                 int minMembers, int maxMembers, String sourceReferencesJson,
+                                 String createdBy) {
         jdbcTemplate.update("""
                 INSERT INTO assignment
                     (id, square_id, name, requirements, origin, confirmation_status, hard_due_at,
-                     min_members, max_members, grading_enabled, source_references_json, revision)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, false, ?::jsonb, 1)
+                     min_members, max_members, grading_enabled, source_references_json, revision,
+                     created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, false, ?::jsonb, 1, ?)
                 """, id, squareId, name, requirements, origin, confirmationStatus,
                 OffsetDateTime.ofInstant(hardDueAt, ZoneOffset.UTC), minMembers, maxMembers,
-                sourceReferencesJson);
+                sourceReferencesJson, createdBy);
+    }
+
+    public Optional<AssignmentRow> lockAssignment(String id) {
+        return jdbcTemplate.query("""
+                        SELECT id, square_id, name, requirements, origin, confirmation_status, hard_due_at,
+                               min_members, max_members, grading_enabled,
+                               source_references_json::text AS source_references_json, revision, created_at,
+                               created_by
+                        FROM assignment WHERE id = ? FOR UPDATE
+                        """, assignmentMapper, id)
+                .stream().findFirst();
+    }
+
+    public boolean assignmentInUse(String assignmentId) {
+        Boolean exists = jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM project WHERE assignment_id = ?)",
+                Boolean.class, assignmentId);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public int updateAssignment(String id, int expectedRevision, String name, String requirements,
+                                Instant hardDueAt, int minMembers, int maxMembers) {
+        return jdbcTemplate.update("""
+                UPDATE assignment
+                SET name = ?, requirements = ?, hard_due_at = ?, min_members = ?, max_members = ?,
+                    revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND revision = ? AND confirmation_status = 'PENDING_CONFIRMATION'
+                  AND origin = 'STUDENT'
+                """, name, requirements, OffsetDateTime.ofInstant(hardDueAt, ZoneOffset.UTC),
+                minMembers, maxMembers, id, expectedRevision);
     }
 
     public int confirmAssignment(String id, int expectedRevision) {

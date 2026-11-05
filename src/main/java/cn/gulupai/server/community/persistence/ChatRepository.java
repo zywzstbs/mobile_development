@@ -25,7 +25,8 @@ public class ChatRepository {
             rs.getString("author_name"), rs.getString("content"), rs.getString("refs_json"),
             rs.getString("mentions_json"), rs.getBoolean("withdrawn"), rs.getInt("revision"),
             rs.getObject("created_at", OffsetDateTime.class).toInstant(),
-            rs.getString("request_hash"), rs.getObject("request_hash_version", Integer.class));
+            rs.getString("request_hash"), rs.getObject("request_hash_version", Integer.class),
+            rs.getString("reply_to_id"));
 
     /**
      * 项目级计数器行锁。发送路径在检查 clientMessageId 前先取该锁，
@@ -60,14 +61,14 @@ public class ChatRepository {
 
     public void insertMessage(String id, String projectId, long sequence, String clientId,
                               String authorId, String content, String refs, String mentions,
-                              String requestHash, Instant now) {
+                              String requestHash, int requestHashVersion, String replyToId, Instant now) {
         jdbc.update("""
                 INSERT INTO chat_message(id, project_id, sequence, client_message_id, author_id,
                     content, refs_json, mentions_json, withdrawn, revision, created_at, updated_at,
-                    request_hash, request_hash_version)
-                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, false, 1, ?, ?, ?, 1)
+                    request_hash, request_hash_version, reply_to_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, false, 1, ?, ?, ?, ?, ?)
                 """, id, projectId, sequence, clientId, authorId, content, refs, mentions,
-                time(now), time(now), requestHash);
+                time(now), time(now), requestHash, requestHashVersion, replyToId);
     }
 
     public Optional<MessageRow> message(String id) {
@@ -158,7 +159,7 @@ public class ChatRepository {
                 SELECT c.change_sequence, m.id, m.project_id, m.sequence, m.client_message_id,
                        m.author_id, u.display_name AS author_name, m.content, m.refs_json,
                        m.mentions_json, m.withdrawn, m.revision, m.created_at,
-                       m.request_hash, m.request_hash_version
+                       m.request_hash, m.request_hash_version, m.reply_to_id
                 FROM chat_change c JOIN chat_message m ON m.id = c.message_id
                 JOIN app_user u ON u.id = m.author_id
                 WHERE c.project_id = ? AND c.change_sequence > ?
@@ -171,7 +172,8 @@ public class ChatRepository {
                         rs.getString("content"), rs.getString("refs_json"),
                         rs.getString("mentions_json"), rs.getBoolean("withdrawn"),
                         rs.getInt("revision"), rs.getObject("created_at", OffsetDateTime.class).toInstant(),
-                        rs.getString("request_hash"), rs.getObject("request_hash_version", Integer.class))),
+                        rs.getString("request_hash"), rs.getObject("request_hash_version", Integer.class),
+                        rs.getString("reply_to_id"))),
                 projectId, afterSequence, limit);
     }
 
@@ -350,7 +352,8 @@ public class ChatRepository {
     public record MessageRow(String id, String projectId, long sequence, String clientMessageId,
                              String authorId, String authorName, String content, String refsJson,
                              String mentionsJson, boolean withdrawn, int revision,
-                             Instant createdAt, String requestHash, Integer requestHashVersion) {
+                             Instant createdAt, String requestHash, Integer requestHashVersion,
+                             String replyToId) {
     }
 
     public record ChangeRow(long changeSequence, MessageRow message) {

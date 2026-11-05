@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * P16 第一步：Spring 实际映射与 07 索引、接口覆盖清单精确对齐。
- * 健康检查和文件字节端点不属于 281 个业务接口。
+ * 健康检查和文件字节端点不属于业务接口。P62 起目录为 284。
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -43,8 +43,8 @@ class RouteCoverageIT {
         Map<String, String> checklist = readChecklist();
         Map<String, String> index = readIndexSummary();
 
-        assertThat(checklist).hasSize(281);
-        assertThat(index).hasSize(281);
+        assertThat(checklist).hasSize(284);
+        assertThat(index).hasSize(284);
         assertThat(index.keySet()).containsExactlyInAnyOrderElementsOf(checklist.keySet());
 
         List<String> documentMismatches = new ArrayList<>();
@@ -57,7 +57,7 @@ class RouteCoverageIT {
         assertThat(documentMismatches).as("07 索引与 JSON 清单路由不一致").isEmpty();
 
         Set<String> expected = new TreeSet<>(checklist.values());
-        assertThat(expected).as("方法+路径必须唯一").hasSize(281);
+        assertThat(expected).as("方法+路径必须唯一").hasSize(284);
 
         Set<String> business = new TreeSet<>();
         Set<String> infrastructure = new TreeSet<>();
@@ -108,7 +108,7 @@ class RouteCoverageIT {
             String route = matcher.group(2) + " " + matcher.group(3);
             assertThat(catalog.put(id, route)).as("P58 重复接口 " + id).isNull();
         }
-        assertThat(catalog).hasSize(281);
+        assertThat(catalog).hasSize(284);
         Set<String> business = new TreeSet<>();
         handlerMapping.getHandlerMethods().forEach((info, handler) -> {
             if (isTestFixture(handler) || info.getPathPatternsCondition() == null) {
@@ -158,7 +158,7 @@ class RouteCoverageIT {
 
     private static Map<String, String> readChecklist() throws Exception {
         JsonNode root = new ObjectMapper().readTree(Path.of("docs/backend/接口覆盖清单.json").toFile());
-        assertThat(root.path("interfaceCount").asInt()).isEqualTo(281);
+        assertThat(root.path("interfaceCount").asInt()).isEqualTo(284);
         Map<String, String> routes = new LinkedHashMap<>();
         Set<String> seenRoutes = new TreeSet<>();
         for (JsonNode item : root.path("items")) {

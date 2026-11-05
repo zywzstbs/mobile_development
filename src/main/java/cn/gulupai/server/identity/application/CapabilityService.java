@@ -18,14 +18,25 @@ public class CapabilityService {
     }
 
     public List<String> forUser(String userId) {
+        List<String> capabilities = new java.util.ArrayList<>();
+        if (hasGlobal(userId, "HELP_CONTENT_WRITE")) {
+            capabilities.add("HELP_CONTENT_WRITE");
+        }
+        Integer support = jdbc.queryForObject("""
+                SELECT count(*) FROM operator_grant
+                WHERE user_id=? AND active=true AND capability='SUPPORT_HANDLE'
+                """, Integer.class, userId);
+        if (support != null && support > 0) {
+            capabilities.add("SUPPORT_HANDLE");
+        }
+        return List.copyOf(capabilities);
+    }
+
+    private boolean hasGlobal(String userId, String capability) {
         Integer count = jdbc.queryForObject("""
                 SELECT count(*) FROM operator_grant
-                WHERE user_id=? AND active=true AND scope_type='GLOBAL'
-                  AND capability='HELP_CONTENT_WRITE'
-                """, Integer.class, userId);
-        if (count != null && count > 0) {
-            return List.of("HELP_CONTENT_WRITE");
-        }
-        return List.of();
+                WHERE user_id=? AND active=true AND scope_type='GLOBAL' AND capability=?
+                """, Integer.class, userId, capability);
+        return count != null && count > 0;
     }
 }

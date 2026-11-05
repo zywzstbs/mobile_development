@@ -31,6 +31,7 @@ public class SessionRepository {
             rs.getString("display_name"),
             rs.getString("identity_status"),
             rs.getBoolean("user_disabled"),
+            rs.getString("account_status"),
             rs.getObject("session_expires_at", java.time.OffsetDateTime.class).toInstant(),
             nullableInstant(rs.getObject("session_revoked_at", java.time.OffsetDateTime.class)),
             rs.getObject("access_expires_at", java.time.OffsetDateTime.class).toInstant(),
@@ -79,6 +80,7 @@ public class SessionRepository {
         return jdbcTemplate.query("""
                         SELECT u.id AS user_id, s.id AS session_id, u.login_id, u.school_id,
                                u.display_name, u.identity_status, u.disabled AS user_disabled,
+                               u.account_status AS account_status,
                                s.expires_at AS session_expires_at, s.revoked_at AS session_revoked_at,
                                a.expires_at AS access_expires_at, a.revoked_at AS access_revoked_at
                         FROM access_token a

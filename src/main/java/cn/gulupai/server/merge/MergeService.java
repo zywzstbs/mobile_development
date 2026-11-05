@@ -357,8 +357,8 @@ public class MergeService {
         Map<String, List<String>> electorates = read(row.electoratesJson(), ELECTORATES);
         List<BallotRow> ballots = merges.ballots(row.id());
         List<MergeViews.SideView> sides = List.of(
-                side(row.sourceSquareId(), electorates.get("source"), ballots, userId),
-                side(row.targetSquareId(), electorates.get("target"), ballots, userId));
+                side(row.sourceSquareId(), electorates.get("source"), ballots, userId, row.status()),
+                side(row.targetSquareId(), electorates.get("target"), ballots, userId, row.status()));
         List<MergeViews.AssignmentView> assignments = squares.listAssignments(row.sourceSquareId()).stream()
                 .map(item -> new MergeViews.AssignmentView(item.id(), item.squareId(), item.name(), item.requirements(),
                         item.origin(), item.confirmationStatus(), item.hardDueAt(), item.minMembers(), item.maxMembers(),
@@ -372,8 +372,9 @@ public class MergeService {
                 read(row.evidenceJson(), LINKS), row.status(), sides, assignments, mappings, canCheck, ready, row.revision());
     }
 
-    private MergeViews.SideView side(String squareId, List<String> electorate, List<BallotRow> ballots, String userId) {
-        int eligible = electorate.size();
+    private MergeViews.SideView side(String squareId, List<String> electorate, List<BallotRow> ballots,
+                                    String userId, String status) {
+        int eligible = electorate == null ? 0 : electorate.size();
         int agree = count(ballots, squareId, "AGREE");
         int disagree = count(ballots, squareId, "DISAGREE");
         int abstain = count(ballots, squareId, "ABSTAIN");
@@ -382,8 +383,13 @@ public class MergeService {
                 .findFirst().orElse(null);
         Object ballot = mine == null ? Map.of() : new MergeViews.BallotView(
                 mine.decision(), mine.revision(), mine.squareId(), mine.at());
+        boolean canVote = "VOTING".equals(status)
+                && electorate != null
+                && electorate.contains(userId)
+                && merges.activeStudents(squareId).contains(userId);
+        boolean passed = eligible > 0 && agree >= required;
         return new MergeViews.SideView(squareId, eligible, agree, disagree, abstain,
-                Math.max(0, eligible - agree - disagree - abstain), agree >= required, required, ballot);
+                Math.max(0, eligible - agree - disagree - abstain), passed, required, ballot, canVote);
     }
 
     private int count(List<BallotRow> ballots, String squareId, String decision) {

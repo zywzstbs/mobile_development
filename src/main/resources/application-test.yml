@@ -25,6 +25,11 @@ app:
   idempotency:
     encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:dGVzdC1vbmx5LWtleS0wMTIzNDU2Nzg5YWJjZGVmMTI=}
     key-id: ${IDEMPOTENCY_KEY_ID:test-v1}
+  registration:
+    enabled: true
+    teacher-application-enabled: true
+    fingerprint-key: ${REGISTRATION_FINGERPRINT_KEY:test-registration-fingerprint-key}
+    key-id: ${REGISTRATION_KEY_ID:test-v1}
 
 logging:
   level:

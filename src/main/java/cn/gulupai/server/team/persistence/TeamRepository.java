@@ -86,6 +86,16 @@ public class TeamRepository {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
+    public AssignmentBrief lockAssignment(String id) {
+        List<AssignmentBrief> rows = jdbc.query("""
+                SELECT id, square_id, name, hard_due_at, min_members, max_members
+                FROM assignment WHERE id = ? FOR UPDATE
+                """, (rs, n) -> new AssignmentBrief(rs.getString("id"), rs.getString("square_id"),
+                rs.getString("name"), rs.getObject("hard_due_at", OffsetDateTime.class).toInstant(),
+                rs.getInt("min_members"), rs.getInt("max_members")), id);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
     public void insertProject(ProjectRow p) {
         jdbc.update("""
                 INSERT INTO project

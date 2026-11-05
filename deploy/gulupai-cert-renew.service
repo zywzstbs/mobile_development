@@ -1,0 +1,10 @@
+[Unit]
+Description=Renew Gulupai IP TLS certificate and reload Caddy
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gulupai/deploy
+ExecStart=/opt/gulupai/deploy/renew-ip-certificate.sh

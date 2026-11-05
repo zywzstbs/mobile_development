@@ -68,6 +68,7 @@ public class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
             AuthTokenRow row = found.get();
             Instant now = clock.instant();
             boolean active = !row.userDisabled()
+                    && "ACTIVE".equals(row.accountStatus())
                     && row.sessionRevokedAt() == null
                     && row.sessionExpiresAt().isAfter(now)
                     && row.accessRevokedAt() == null

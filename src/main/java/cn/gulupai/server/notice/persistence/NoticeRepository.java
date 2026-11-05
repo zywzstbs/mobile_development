@@ -199,14 +199,14 @@ public class NoticeRepository {
 
     public void insertNotification(String id, String userId, String sourceType, String sourceId,
                                    String category, String title, String body, int eventVersion,
-                                   Instant now) {
+                                   Integer sourceVersion, Instant now) {
         jdbc.update("""
                 INSERT INTO notification(id, user_id, source_type, source_id, category, title, body,
-                    event_version, visible_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    event_version, source_version, visible_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (user_id, source_type, source_id, event_version) DO NOTHING
                 """, id, userId, sourceType, sourceId, category, title, body, eventVersion,
-                time(now), time(now));
+                sourceVersion, time(now), time(now));
     }
 
     public List<NotificationRow> notifications(String userId, boolean unreadOnly) {
@@ -216,6 +216,7 @@ public class NoticeRepository {
                 """, (rs, n) -> new NotificationRow(rs.getString("id"),
                 rs.getString("source_type"), rs.getString("source_id"), rs.getString("category"),
                 rs.getString("title"), rs.getString("body"), rs.getInt("event_version"),
+                rs.getObject("source_version", Integer.class),
                 rs.getObject("visible_at", OffsetDateTime.class).toInstant(),
                 rs.getObject("read_at", OffsetDateTime.class) == null ? null
                         : rs.getObject("read_at", OffsetDateTime.class).toInstant(),
@@ -244,27 +245,67 @@ public class NoticeRepository {
 
     public PreferencesRow preferences(String userId) {
         List<PreferencesRow> rows = jdbc.query("""
-                SELECT * FROM notification_preference WHERE user_id = ?
-                """, (rs, n) -> new PreferencesRow(rs.getString("user_id"), rs.getString("channel"),
-                rs.getString("chat_default"), rs.getString("quiet_start"), rs.getString("quiet_end"),
-                rs.getString("timezone"), rs.getInt("revision")), userId);
-        return rows.isEmpty() ? new PreferencesRow(userId, "IN_APP", "MENTIONS",
-                "22:00", "08:00", "Asia/Shanghai", 0) : rows.getFirst();
+                SELECT user_id, revision, timezone, quiet_enabled, quiet_start, quiet_end,
+                       course_notices, mention_channel, support_replies, chat_default,
+                       project_chat_modes_json::text AS project_chat_modes_json
+                FROM notification_preference WHERE user_id = ?
+                """, preferenceMapper, userId);
+        return rows.isEmpty() ? PreferencesRow.unsaved(userId) : rows.getFirst();
     }
 
-    public int savePreferences(String userId, int expected, String channel, String chat,
-                               String start, String end, String timezone, Instant now) {
-        return jdbc.update("""
-                INSERT INTO notification_preference(user_id, channel, chat_default, quiet_start,
-                    quiet_end, timezone, revision, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-                ON CONFLICT (user_id) DO UPDATE SET channel = EXCLUDED.channel,
-                    chat_default = EXCLUDED.chat_default, quiet_start = EXCLUDED.quiet_start,
-                    quiet_end = EXCLUDED.quiet_end, timezone = EXCLUDED.timezone,
-                    revision = notification_preference.revision + 1, updated_at = EXCLUDED.updated_at
-                WHERE notification_preference.revision = ?
-                """, userId, channel, chat, start, end, timezone, time(now), expected);
+    public Optional<PreferencesRow> lockPreferences(String userId) {
+        return jdbc.query("""
+                SELECT user_id, revision, timezone, quiet_enabled, quiet_start, quiet_end,
+                       course_notices, mention_channel, support_replies, chat_default,
+                       project_chat_modes_json::text AS project_chat_modes_json
+                FROM notification_preference WHERE user_id = ? FOR UPDATE
+                """, preferenceMapper, userId).stream().findFirst();
     }
+
+    public int insertPreferences(PreferencesRow row, Instant now) {
+        return jdbc.update("""
+                INSERT INTO notification_preference
+                    (user_id, chat_default, quiet_start, quiet_end, timezone, revision, updated_at,
+                     course_notices, mention_channel, support_replies, quiet_enabled, project_chat_modes_json)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?::jsonb)
+                ON CONFLICT (user_id) DO NOTHING
+                """, row.userId(), row.chatDefault(), row.quietStart(), row.quietEnd(), row.timezone(),
+                time(now), row.courseNotices(), row.mentions(), row.supportReplies(), row.quietEnabled(),
+                row.projectChatModesJson());
+    }
+
+    public int updatePreferences(PreferencesRow row, int expected, Instant now) {
+        return jdbc.update("""
+                UPDATE notification_preference
+                SET chat_default = ?, quiet_start = ?, quiet_end = ?, timezone = ?,
+                    course_notices = ?, mention_channel = ?, support_replies = ?, quiet_enabled = ?,
+                    project_chat_modes_json = ?::jsonb, revision = revision + 1, updated_at = ?
+                WHERE user_id = ? AND revision = ?
+                """, row.chatDefault(), row.quietStart(), row.quietEnd(), row.timezone(),
+                row.courseNotices(), row.mentions(), row.supportReplies(), row.quietEnabled(),
+                row.projectChatModesJson(), time(now), row.userId(), expected);
+    }
+
+    public boolean activeProjectMember(String projectId, String userId) {
+        Boolean ok = jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM membership
+                              WHERE project_id = ? AND user_id = ? AND status = 'ACTIVE')
+                """, Boolean.class, projectId, userId);
+        return Boolean.TRUE.equals(ok);
+    }
+
+    public boolean projectExists(String projectId) {
+        Boolean ok = jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM project WHERE id = ?)", Boolean.class, projectId);
+        return Boolean.TRUE.equals(ok);
+    }
+
+    private final RowMapper<PreferencesRow> preferenceMapper = (rs, n) -> new PreferencesRow(
+            rs.getString("user_id"), rs.getInt("revision"), rs.getString("timezone"),
+            rs.getBoolean("quiet_enabled"), rs.getString("quiet_start"), rs.getString("quiet_end"),
+            rs.getString("course_notices"), rs.getString("mention_channel"),
+            rs.getString("support_replies"), rs.getString("chat_default"),
+            rs.getString("project_chat_modes_json"));
 
     public String userName(String userId) {
         return jdbc.queryForObject("SELECT display_name FROM app_user WHERE id = ?", String.class, userId);
@@ -369,12 +410,17 @@ public class NoticeRepository {
     }
 
     public record NotificationRow(String id, String sourceType, String sourceId, String category,
-                                  String title, String body, int eventVersion, Instant visibleAt,
-                                  Instant readAt, Instant createdAt) {
+                                  String title, String body, int eventVersion, Integer sourceVersion,
+                                  Instant visibleAt, Instant readAt, Instant createdAt) {
     }
 
-    public record PreferencesRow(String userId, String channel, String chatDefault, String quietStart,
-                                 String quietEnd, String timezone, int revision) {
+    public record PreferencesRow(String userId, int revision, String timezone, boolean quietEnabled,
+                                 String quietStart, String quietEnd, String courseNotices, String mentions,
+                                 String supportReplies, String chatDefault, String projectChatModesJson) {
+        public static PreferencesRow unsaved(String userId) {
+            return new PreferencesRow(userId, 0, "Asia/Shanghai", true, "22:00", "08:00",
+                    "IN_APP", "IN_APP", "IN_APP", "MENTIONS", "[]");
+        }
     }
 
     public record PreviewRow(String id, String squareId, String createdBy, String payload,

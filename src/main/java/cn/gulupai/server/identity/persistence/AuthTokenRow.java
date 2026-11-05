@@ -13,6 +13,7 @@ public record AuthTokenRow(
         String displayName,
         String identityStatus,
         boolean userDisabled,
+        String accountStatus,
         Instant sessionExpiresAt,
         Instant sessionRevokedAt,
         Instant accessExpiresAt,

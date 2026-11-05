@@ -33,7 +33,7 @@ public class CurrentUserPolicy {
         }
         UserRow user = userRepository.findById(principal.userId())
                 .orElseThrow(() -> new ApiException(ApiCode.SESSION_EXPIRED));
-        if (user.disabled()) {
+        if (user.disabled() || !"ACTIVE".equals(user.accountStatus())) {
             throw new ApiException(ApiCode.SESSION_EXPIRED);
         }
         return principal;

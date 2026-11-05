@@ -8,6 +8,9 @@ app:
     # 仅本地开发默认值；生产必须通过 IDEMPOTENCY_ENCRYPTION_KEY 提供独立密钥。
     encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:bG9jYWwtZGV2LW9ubHkta2V5LTAxMjM0NTY3ODlhYmM=}
     key-id: ${IDEMPOTENCY_KEY_ID:local-dev-v1}
+  registration:
+    fingerprint-key: ${REGISTRATION_FINGERPRINT_KEY:local-registration-fingerprint-key}
+    key-id: ${REGISTRATION_KEY_ID:local-dev-v1}
 
 logging:
   level:

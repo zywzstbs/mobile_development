@@ -1,0 +1,24 @@
+{
+	auto_https off
+	default_sni {$API_DOMAIN}
+	fallback_sni {$API_DOMAIN}
+}
+
+http://{$API_DOMAIN} {
+	handle /.well-known/acme-challenge/* {
+		root * /srv/acme
+		file_server
+	}
+	handle {
+		redir https://{$API_DOMAIN}{uri} permanent
+	}
+}
+
+https://{$API_DOMAIN} {
+	tls /etc/letsencrypt/live/{$API_DOMAIN}/fullchain.pem /etc/letsencrypt/live/{$API_DOMAIN}/privkey.pem
+	encode gzip
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy app:8080
+}

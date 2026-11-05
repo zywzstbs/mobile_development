@@ -2,6 +2,7 @@ package cn.gulupai.server.notice.application;
 
 import cn.gulupai.server.common.api.ApiCode;
 import cn.gulupai.server.common.api.ApiException;
+import cn.gulupai.server.common.api.FieldErrorDetail;
 import cn.gulupai.server.common.audit.AuditService;
 import cn.gulupai.server.common.idempotency.IdempotencyRequest;
 import cn.gulupai.server.common.idempotency.IdempotencyService;
@@ -15,6 +16,7 @@ import cn.gulupai.server.notice.api.NoticeViews;
 import cn.gulupai.server.notice.persistence.NoticeRepository;
 import cn.gulupai.server.teaching.application.CourseAuthorityService;
 import cn.gulupai.server.teaching.domain.TeacherCapabilities;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -24,8 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -362,7 +367,7 @@ public class NoticeService {
                     for (String user : targets) {
                         repo.insertNotification(UUID.randomUUID().toString(), user, "ANNOUNCEMENT",
                                 id, "COURSE_NOTICE", locked.title(), "请尽快确认公告", request.contentVersion(),
-                                clock.instant());
+                                request.contentVersion(), clock.instant());
                     }
                     return new NoticeViews.Reminder(id, request.contentVersion(), targets.size());
                 });
@@ -373,8 +378,8 @@ public class NoticeService {
         policy.requireActiveBusinessUser(principal);
         return repo.notifications(principal.userId(), unreadOnly).stream()
                 .map(n -> new NoticeViews.Notification(n.id(), n.sourceType(), n.sourceId(),
-                        n.category(), n.title(), n.body(), n.eventVersion(), n.visibleAt(),
-                        n.readAt(), n.createdAt())).toList();
+                        n.category(), n.title(), n.body(), n.eventVersion(), n.sourceVersion(),
+                        n.visibleAt(), n.readAt(), n.createdAt())).toList();
     }
 
     @Transactional
@@ -391,20 +396,89 @@ public class NoticeService {
     @Transactional(readOnly = true)
     public NoticeViews.Preferences preferences(AuthenticatedUser principal) {
         policy.requireActiveBusinessUser(principal);
-        NoticeRepository.PreferencesRow p = repo.preferences(principal.userId());
-        return new NoticeViews.Preferences(p.revision(), p.channel(), p.chatDefault(),
-                p.quietStart(), p.quietEnd(), p.timezone());
+        return toPreferences(repo.preferences(principal.userId()));
     }
 
     @Transactional
     public NoticeViews.Preferences savePreferences(AuthenticatedUser principal,
                                                    NoticeRequests.Preferences request) {
         policy.requireActiveBusinessUser(principal);
-        int updated = repo.savePreferences(principal.userId(), request.expectedRevision(),
-                request.channel(), request.chatDefault(), request.quietStart(), request.quietEnd(),
-                request.timezone(), clock.instant());
-        if (updated != 1) throw new ApiException(ApiCode.RESOURCE_CHANGED);
-        return preferences(principal);
+        if (!ZoneId.getAvailableZoneIds().contains(request.timezone())) {
+            throw ApiException.fields(List.of(new FieldErrorDetail("timezone", "INVALID_FORMAT", "时区无效")));
+        }
+        List<NoticeViews.ProjectChatMode> modes = normalizeModes(principal.userId(), request.projectChatModes());
+        NoticeRepository.PreferencesRow row = new NoticeRepository.PreferencesRow(
+                principal.userId(), request.expectedRevision(), request.timezone(),
+                request.quietHours().enabled(), request.quietHours().start(), request.quietHours().end(),
+                request.courseNotices(), request.mentions(), request.supportReplies(),
+                request.chatDefault(), writeModes(modes));
+        int updated = request.expectedRevision() == 0
+                ? repo.insertPreferences(row, clock.instant())
+                : repo.updatePreferences(row, request.expectedRevision(), clock.instant());
+        if (updated != 1) {
+            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        }
+        return toPreferences(repo.preferences(principal.userId()));
+    }
+
+    private List<NoticeViews.ProjectChatMode> normalizeModes(String userId,
+                                                             List<NoticeRequests.ProjectChatMode> modes) {
+        List<NoticeViews.ProjectChatMode> normalized = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        List<FieldErrorDetail> errors = new ArrayList<>();
+        for (int i = 0; i < modes.size(); i++) {
+            NoticeRequests.ProjectChatMode mode = modes.get(i);
+            if (mode == null || mode.projectId() == null || mode.projectId().isBlank()
+                    || mode.mode() == null || mode.mode().isBlank()) {
+                errors.add(new FieldErrorDetail("projectChatModes[" + i + "]", "REQUIRED", "请填写此项"));
+                continue;
+            }
+            if (!seen.add(mode.projectId())) {
+                errors.add(new FieldErrorDetail("projectChatModes[" + i + "].projectId",
+                        "DUPLICATE", "存在重复项"));
+                continue;
+            }
+            if (!repo.projectExists(mode.projectId())) {
+                errors.add(new FieldErrorDetail("projectChatModes[" + i + "].projectId",
+                        "INVALID_FORMAT", "项目不存在"));
+                continue;
+            }
+            if (!repo.activeProjectMember(mode.projectId(), userId)) {
+                throw new ApiException(ApiCode.FORBIDDEN);
+            }
+            normalized.add(new NoticeViews.ProjectChatMode(mode.projectId(), mode.mode()));
+        }
+        if (!errors.isEmpty()) {
+            throw ApiException.fields(errors);
+        }
+        return normalized;
+    }
+
+    private NoticeViews.Preferences toPreferences(NoticeRepository.PreferencesRow row) {
+        return new NoticeViews.Preferences(row.revision(), row.timezone(),
+                new NoticeViews.QuietHours(row.quietEnabled(), row.quietStart(), row.quietEnd()),
+                row.courseNotices(), row.mentions(), row.supportReplies(), row.chatDefault(),
+                readModes(row.projectChatModesJson()));
+    }
+
+    private List<NoticeViews.ProjectChatMode> readModes(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return mapper.readValue(json, new TypeReference<List<NoticeViews.ProjectChatMode>>() {
+            });
+        } catch (Exception ex) {
+            throw new IllegalStateException("通知偏好中的项目聊天设置无法解析", ex);
+        }
+    }
+
+    private String writeModes(List<NoticeViews.ProjectChatMode> modes) {
+        try {
+            return mapper.writeValueAsString(modes);
+        } catch (Exception ex) {
+            throw new IllegalStateException("无法保存项目聊天偏好", ex);
+        }
     }
 
     private NoticeViews.Announcement publish(AuthenticatedUser principal, String squareId, String id,
@@ -429,7 +503,7 @@ public class NoticeService {
                                   List<String> audience) {
         for (String user : audience) {
             repo.insertNotification(UUID.randomUUID().toString(), user, "ANNOUNCEMENT", id,
-                    "COURSE_NOTICE", title, content, version, clock.instant());
+                    "COURSE_NOTICE", title, content, version, version, clock.instant());
         }
     }
 

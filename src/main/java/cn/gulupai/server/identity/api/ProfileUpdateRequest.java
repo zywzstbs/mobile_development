@@ -12,11 +12,11 @@ import java.util.List;
 
 public record ProfileUpdateRequest(
         @NotNull @PositiveOrZero @Max(999_999_999) Integer expectedRevision,
-        @NotBlank @Utf16Length(max = 80) String displayName,
-        @NotNull @Size(max = 12) List<@NotBlank @Utf16Length(max = 80) String> skills,
-        @NotNull @Min(0) @Max(168) Integer weeklyHours,
-        @Utf16Length(max = 2000) String availability,
-        @NotBlank @Utf16Length(max = 2000) String collaborationGoal,
-        @Utf16Length(max = 2000) String intro
+        @NotBlank @Utf16Length(min = 1, max = 24) String displayName,
+        @NotNull @Size(max = 8) List<@NotBlank @Utf16Length(max = 20) String> skills,
+        @NotNull @Min(0) @Max(60) Integer weeklyHours,
+        @Utf16Length(max = 180) String availability,
+        @Utf16Length(max = 180) String collaborationGoal,
+        @Utf16Length(max = 300) String intro
 ) {
 }

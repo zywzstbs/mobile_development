@@ -206,7 +206,7 @@ public class SquareService {
         policy.requireActiveBusinessUser(principal);
         requireReadableSquare(principal, squareId);
         return squareRepository.listAssignments(squareId).stream()
-                .map(projectionService::assignment).toList();
+                .map(row -> projectionService.assignment(row, principal.userId())).toList();
     }
 
     public SquareRow requireReadableSquare(AuthenticatedUser principal, String squareId) {

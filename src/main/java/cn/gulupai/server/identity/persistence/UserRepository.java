@@ -34,6 +34,7 @@ public class UserRepository {
             rs.getString("password_hash"),
             IdentityStatus.valueOf(rs.getString("identity_status")),
             rs.getBoolean("disabled"),
+            rs.getString("account_status"),
             readSkills(rs.getString("skills_json")),
             rs.getInt("revision"));
 
@@ -45,7 +46,7 @@ public class UserRepository {
     public Optional<UserRow> findByLoginId(String loginId) {
         return jdbcTemplate.query("""
                         SELECT id, school_id, login_id, student_no, display_name, password_hash,
-                               identity_status, disabled, skills_json, revision
+                               identity_status, disabled, account_status, skills_json, revision
                         FROM app_user
                         WHERE login_id = ?
                         """, userMapper, loginId)
@@ -68,7 +69,7 @@ public class UserRepository {
     public Optional<UserRow> findById(String userId) {
         return jdbcTemplate.query("""
                         SELECT id, school_id, login_id, student_no, display_name, password_hash,
-                               identity_status, disabled, skills_json, revision
+                               identity_status, disabled, account_status, skills_json, revision
                         FROM app_user
                         WHERE id = ?
                         """, userMapper, userId)
@@ -79,7 +80,7 @@ public class UserRepository {
     public Optional<UserRow> findByIdForUpdate(String userId) {
         return jdbcTemplate.query("""
                         SELECT id, school_id, login_id, student_no, display_name, password_hash,
-                               identity_status, disabled, skills_json, revision
+                               identity_status, disabled, account_status, skills_json, revision
                         FROM app_user
                         WHERE id = ?
                         FOR UPDATE
@@ -90,7 +91,7 @@ public class UserRepository {
     public Optional<UserRow> findBySchoolAndStudentNo(String schoolId, String studentNo) {
         return jdbcTemplate.query("""
                         SELECT id, school_id, login_id, student_no, display_name, password_hash,
-                               identity_status, disabled, skills_json, revision
+                               identity_status, disabled, account_status, skills_json, revision
                         FROM app_user
                         WHERE school_id = ? AND student_no = ?
                         """, userMapper, schoolId, studentNo)

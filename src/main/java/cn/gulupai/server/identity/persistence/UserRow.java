@@ -13,6 +13,7 @@ public record UserRow(
         String passwordHash,
         IdentityStatus identityStatus,
         boolean disabled,
+        String accountStatus,
         List<String> skills,
         int revision
 ) {

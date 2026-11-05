@@ -25,7 +25,7 @@
 
 ## 1. 范围与系统职责
 
-本版覆盖 20 个业务模块的 281 个 HTTP 方法与路径组合。分页或筛选参数变化不另计接口。每项给出路径参数、查询参数、正文结构、权限、动作约束及响应字典；统一规则同样适用于每项。
+本版覆盖 20 个业务模块的 284 个 HTTP 方法与路径组合。分页或筛选参数变化不另计接口。每项给出路径参数、查询参数、正文结构、权限、动作约束及响应字典；统一规则同样适用于每项。P62 在原 281 项上增加注册选项、注册提交和作业编辑。
 
 |系统|负责事项|不能代替的事实|
 |---|---|---|
@@ -348,6 +348,8 @@ source在本机预览为PREVIEW；远程为REMOTE_加规范API地址UTF-8的SHA2
 |[AUTH-06](#api-auth-06)|`PUT /me/profile`|保存 · 本人 / 画像|
 |[AUTH-07](#api-auth-07)|`PUT /me/profile-visibility`|保存 · 本人 / 画像可见范围|
 |[AUTH-08](#api-auth-08)|`GET /me`|读取 · 本人|
+|[AUTH-09](#api-auth-09)|`GET /auth/registration-options`|读取 · 认证 / 注册选项|
+|[AUTH-10](#api-auth-10)|`POST /auth/registrations`|提交 · 认证 / 注册|
 
 <a id="api-auth-01"></a>
 
@@ -633,6 +635,7 @@ Query参数：
 |[COURSE-20](#api-course-20)|`GET /squares/{squareId}/join-requests`|读取 · 课程 / 入课申请|
 |[COURSE-21](#api-course-21)|`GET /square-membership-requests/{requestId}`|读取 · 入课申请|
 |[COURSE-22](#api-course-22)|`POST /square-membership-requests/{requestId}/decisions`|提交 · 入课申请 / 审核决定|
+|[COURSE-23](#api-course-23)|`PATCH /assignments/{assignmentId}`|保存 · 作业|
 
 <a id="api-course-01"></a>
 

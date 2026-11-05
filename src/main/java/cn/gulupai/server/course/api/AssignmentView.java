@@ -15,7 +15,9 @@ public record AssignmentView(
         int maxMembers,
         boolean gradingEnabled,
         int revision,
-        List<SourceReferenceView> sourceReferences
+        List<SourceReferenceView> sourceReferences,
+        String createdBy,
+        boolean canEdit
 ) {
     public AssignmentView {
         sourceReferences = List.copyOf(sourceReferences);

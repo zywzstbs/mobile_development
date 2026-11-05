@@ -157,15 +157,27 @@ class NoticeP14IT {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1));
         mockMvc.perform(get("/api/v1/me/notification-preferences").header("Authorization", bearer(student)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.channel").value("IN_APP"))
-                .andExpect(jsonPath("$.data.quietStart").value("22:00"));
+                .andExpect(jsonPath("$.data.revision").value(0))
+                .andExpect(jsonPath("$.data.courseNotices").value("IN_APP"))
+                .andExpect(jsonPath("$.data.mentions").value("IN_APP"))
+                .andExpect(jsonPath("$.data.supportReplies").value("IN_APP"))
+                .andExpect(jsonPath("$.data.chatDefault").value("MENTIONS"))
+                .andExpect(jsonPath("$.data.quietHours.enabled").value(true))
+                .andExpect(jsonPath("$.data.quietHours.start").value("22:00"))
+                .andExpect(jsonPath("$.data.projectChatModes").isArray());
         mockMvc.perform(put("/api/v1/me/notification-preferences")
                         .header("Authorization", bearer(student))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"expectedRevision\":0,\"channel\":\"SYSTEM\",\"chatDefault\":\"ALL\"," +
-                                "\"quietStart\":\"23:00\",\"quietEnd\":\"07:00\",\"timezone\":\"Asia/Shanghai\"}"))
+                        .content("""
+                                {"expectedRevision":0,"timezone":"Asia/Shanghai",
+                                 "quietHours":{"enabled":true,"start":"23:00","end":"07:00"},
+                                 "courseNotices":"SYSTEM","mentions":"IN_APP","supportReplies":"IN_APP",
+                                 "chatDefault":"ALL","projectChatModes":[]}
+                                """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.channel").value("SYSTEM"));
+                .andExpect(jsonPath("$.data.revision").value(1))
+                .andExpect(jsonPath("$.data.courseNotices").value("SYSTEM"))
+                .andExpect(jsonPath("$.data.chatDefault").value("ALL"));
 
         mockMvc.perform(post("/api/v1/announcements/{id}/revisions", id)
                         .header("Authorization", bearer(teacher)).header("Idempotency-Key", "p14-format")
@@ -700,6 +712,57 @@ class NoticeP14IT {
     private List<Map<String, Object>> slots() {
         return List.of(Map.of("weekday", 3, "periodId", "period_demo_2", "weekPattern", "ALL",
                 "startWeek", 1, "endWeek", 16, "customWeeks", List.of()));
+    }
+
+    @Test
+    void projectChatModesRejectNullEmptyDuplicateAndIllegalMode() throws Exception {
+        String student = login("student_demo_01", "demo-password-01");
+        assertPreferenceFields(student, preferences("[null]"), "REQUIRED", "projectChatModes");
+        assertPreferenceFields(student, preferences("[{}]"), "REQUIRED", "projectChatModes[0].projectId");
+        MvcResult duplicate = putPreferences(student, preferences("""
+                [{"projectId":"missing_project","mode":"ALL"},
+                 {"projectId":"missing_project","mode":"MUTE"}]
+                """));
+        assertThat(duplicate.getResponse().getStatus()).isEqualTo(422);
+        JsonNode duplicateErrors = data(duplicate).path("fieldErrors");
+        assertThat(duplicateErrors.toString()).contains("DUPLICATE");
+        assertThat(duplicateErrors.toString()).contains("projectChatModes");
+        MvcResult illegal = putPreferences(student, preferences("""
+                [{"projectId":"missing_project","mode":"QUICK"}]
+                """));
+        assertThat(illegal.getResponse().getStatus()).isEqualTo(422);
+        assertThat(illegal.getResponse().getContentAsString()).doesNotContain("QUICK");
+        JsonNode illegalErrors = data(illegal).path("fieldErrors");
+        assertThat(illegalErrors.toString()).contains("INVALID_FORMAT");
+        assertThat(illegalErrors.toString()).contains("projectChatModes[0].mode");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM notification_preference WHERE user_id = ?",
+                Integer.class, "user_demo_student_01")).isZero();
+    }
+
+    private void assertPreferenceFields(String token, String body, String code, String field) throws Exception {
+        MvcResult result = putPreferences(token, body);
+        assertThat(result.getResponse().getStatus()).isEqualTo(422);
+        assertThat(result.getResponse().getContentAsString()).contains("VALIDATION_FAILED");
+        JsonNode errors = data(result).path("fieldErrors");
+        assertThat(errors.toString()).contains(code).contains(field);
+    }
+
+    private MvcResult putPreferences(String token, String body) throws Exception {
+        return mockMvc.perform(put("/api/v1/me/notification-preferences")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andReturn();
+    }
+
+    private static String preferences(String modes) {
+        return """
+                {"expectedRevision":0,"timezone":"Asia/Shanghai",
+                 "quietHours":{"enabled":true,"start":"22:00","end":"08:00"},
+                 "courseNotices":"IN_APP","mentions":"IN_APP","supportReplies":"IN_APP",
+                 "chatDefault":"MENTIONS","projectChatModes":%s}
+                """.formatted(modes);
     }
 
     private String login(String loginId, String password) throws Exception {

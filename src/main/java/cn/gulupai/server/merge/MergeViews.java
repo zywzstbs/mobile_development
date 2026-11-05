@@ -16,7 +16,7 @@ public final class MergeViews {
 
     public record SideView(
             String squareId, int eligibleCount, int agreeCount, int disagree, int abstain, int unvoted,
-            boolean passed, int requiredCount, Object myBallot
+            boolean passed, int requiredCount, Object myBallot, boolean canVote
     ) {
     }
 

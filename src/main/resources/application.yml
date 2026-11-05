@@ -66,6 +66,15 @@ app:
     encryption-key: ${IDEMPOTENCY_ENCRYPTION_KEY:}
     key-id: ${IDEMPOTENCY_KEY_ID:local-dev-v1}
     retention-days: 7
+  registration:
+    enabled: ${REGISTRATION_ENABLED:false}
+    teacher-application-enabled: ${REGISTRATION_TEACHER_ENABLED:false}
+    fingerprint-key: ${REGISTRATION_FINGERPRINT_KEY:}
+    key-id: ${REGISTRATION_KEY_ID:local-dev-v1}
+    receipt-ttl: 7d
+    max-per-account: 5
+    max-per-ip: 20
+    window: 15m
 
 logging:
   pattern:

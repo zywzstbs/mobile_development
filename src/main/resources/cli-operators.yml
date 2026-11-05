@@ -1,0 +1,10 @@
+# 注册审核映射只认本文件。
+# 命令行参数、JVM 系统属性、环境变量和 application 配置都不能临时覆盖。
+# os-user 填写操作系统有效用户名；__TRUSTED_OS_USER__ 表示本次进程的有效用户，
+# 不读取 user.name 或 USER。subject-id 写入审计，display-label 只用于输出。
+# 124.220.167.12：仅主机运维者可在受保护镜像内以 app 系统用户运行审核 CLI。
+# 审计关联现有 operator1 运营主体；该业务账号的登录密码不授予远程审核入口。
+operators:
+  - os-user: app
+    subject-id: user_demo_full_operator
+    display-label: 演示大学运营审核（operator1）

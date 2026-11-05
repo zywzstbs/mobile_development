@@ -195,7 +195,7 @@ public class DemoScenarioService {
 
         for (int i = 1; i <= 51; i++) {
             chats.send(user(STUDENT_01), quick.id(), new ChatRequests.Send(
-                    "demo-chat-" + i, "演示历史消息 " + i, List.of(), List.of()),
+                    "demo-chat-" + i, "演示历史消息 " + i, List.of(), List.of(), null),
                     "demo-full-chat-" + i, "/demo-seed/chat/" + i);
         }
         boards.createTopic(user(STUDENT_01), quick.id(), new BoardRequests.CreateTopic(
