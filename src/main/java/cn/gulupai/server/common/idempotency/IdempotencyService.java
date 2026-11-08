@@ -50,16 +50,33 @@ public class IdempotencyService {
     }
 
     /**
-     * 带回放投影的幂等执行。
+     * 带回放投影的幂等执行。新执行与回放共用同一段授权检查。
      *
-     * <p>新执行只返回本次业务结果；命中已成功回执时，先重新核权、核对请求摘要，
-     * 再把缓存结果交给 {@code replayProjector} 按当前资源状态投影。投影器不得再次
-     * 插入消息、分配序号、发 outbox 或扣配额。
+     * <p>需要区分“首次执行”和“已提交回放”的调用方使用
+     * {@link #execute(IdempotencyRequest, Class, Runnable, Runnable, Supplier, ReplayProjector)}：
+     * 首次执行不得要求业务前置条件已经满足，回放也不能因此跳过范围检查。</p>
      */
     @Transactional(rollbackFor = Exception.class)
     public <T> T execute(IdempotencyRequest request,
                          Class<T> resultType,
                          Runnable authorizationCheck,
+                         Supplier<T> action,
+                         ReplayProjector<T> replayProjector) {
+        return execute(request, resultType, authorizationCheck, authorizationCheck, action, replayProjector);
+    }
+
+    /**
+     * 区分首次执行与已提交回放的幂等执行。
+     *
+     * <p>命中已成功回执时，先核对请求摘要，再执行 {@code replayCheck}；未命中时先执行
+     * {@code newExecutionCheck}，再执行业务动作。回放投影器不得再次插入消息、分配序号、
+     * 发 outbox 或扣配额。</p>
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public <T> T execute(IdempotencyRequest request,
+                         Class<T> resultType,
+                         Runnable newExecutionCheck,
+                         Runnable replayCheck,
                          Supplier<T> action,
                          ReplayProjector<T> replayProjector) {
         if (request.principal() == null) {
@@ -90,13 +107,13 @@ public class IdempotencyService {
                 if (!receipt.bodyHash().equals(bodyHash)) {
                     throw new ApiException(ApiCode.IDEMPOTENCY_KEY_REUSED);
                 }
-                authorizationCheck.run();
+                replayCheck.run();
                 return replayProjector.project(deserialize(receipt.resultCiphertext(), resultType));
             }
             store.delete(receipt.id());
         }
 
-        authorizationCheck.run();
+        newExecutionCheck.run();
         T result = action.get();
         if (result == null) {
             throw new IllegalStateException("幂等动作没有返回结果");

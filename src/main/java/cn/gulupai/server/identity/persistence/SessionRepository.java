@@ -94,6 +94,20 @@ public class SessionRepository {
     /**
      * 注销当前会话及其全部访问令牌；重复调用不重复增加 revision。
      */
+    public void revokeAllForUser(String userId, Instant now) {
+        jdbcTemplate.update("""
+                UPDATE access_token
+                SET revoked_at = ?, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+                WHERE revoked_at IS NULL AND session_id IN (
+                    SELECT id FROM auth_session WHERE user_id = ? AND revoked_at IS NULL)
+                """, ts(now), userId);
+        jdbcTemplate.update("""
+                UPDATE auth_session
+                SET revoked_at = ?, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND revoked_at IS NULL
+                """, ts(now), userId);
+    }
+
     public void revokeSessionAndAccessTokens(String sessionId, Instant now) {
         jdbcTemplate.update("""
                 UPDATE auth_session

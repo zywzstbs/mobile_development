@@ -210,7 +210,7 @@ class RegistrationP62IT {
         assertThatThrownBy(() -> reviewService.review(applicationId, 1, "APPROVE", "自己审自己"))
                 .isInstanceOf(ApiException.class)
                 .extracting(ex -> ((ApiException) ex).code())
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.SELF_REVIEW_FORBIDDEN);
         assertPending(applicationId);
 
         jdbcTemplate.update("UPDATE registration_application SET user_id = ? WHERE id = ?",

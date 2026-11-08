@@ -385,10 +385,12 @@ class GovT01T06IT {
                 .andExpect(status().isForbidden());
         jdbc.update("UPDATE app_user SET identity_status = 'VERIFIED' WHERE id = ?", TEACHER_B);
 
-        jdbc.update("UPDATE app_user SET disabled = true WHERE id = ?", TEACHER_B);
+        jdbc.update(
+                "UPDATE app_user SET disabled = true, account_status = 'DISABLED' WHERE id = ?", TEACHER_B);
         mockMvc.perform(get("/api/v1/personnel-cases/{id}", caseId).header("Authorization", bearer(teacherB)))
                 .andExpect(status().is4xxClientError());
-        jdbc.update("UPDATE app_user SET disabled = false WHERE id = ?", TEACHER_B);
+        jdbc.update(
+                "UPDATE app_user SET disabled = false, account_status = 'ACTIVE' WHERE id = ?", TEACHER_B);
 
         jdbc.update("""
                 INSERT INTO school (id, name, timezone) VALUES ('school_other', '其他学校', 'Asia/Shanghai')
@@ -438,9 +440,11 @@ class GovT01T06IT {
         recover(revoked.teacherA(), revoked.caseId(), "t03-revoked");
 
         Scenario disabled = caseWithBAsAssignee("t03-disabled");
-        jdbc.update("UPDATE app_user SET disabled = true WHERE id = ?", TEACHER_B);
+        jdbc.update(
+                "UPDATE app_user SET disabled = true, account_status = 'DISABLED' WHERE id = ?", TEACHER_B);
         recover(disabled.teacherA(), disabled.caseId(), "t03-disabled");
-        jdbc.update("UPDATE app_user SET disabled = false WHERE id = ?", TEACHER_B);
+        jdbc.update(
+                "UPDATE app_user SET disabled = false, account_status = 'ACTIVE' WHERE id = ?", TEACHER_B);
 
         Scenario roleLost = caseWithBAsAssignee("t03-role");
         jdbc.update("DELETE FROM user_role WHERE user_id = ? AND role = 'TEACHER'", TEACHER_B);

@@ -1,5 +1,7 @@
 package cn.gulupai.server.teaching.application;
 
+import cn.gulupai.server.common.api.ApiCode;
+import cn.gulupai.server.common.api.ApiException;
 import cn.gulupai.server.common.audit.AuditService;
 import cn.gulupai.server.course.persistence.SquareRepository;
 import cn.gulupai.server.course.persistence.SquareRow;
@@ -44,57 +46,90 @@ public class TeacherClaimReviewService {
     }
 
     public ReviewResult review(String claimId, String decision, String reason) {
-        if (!"APPROVE".equals(decision) && !"REJECT".equals(decision)) {
-            throw new IllegalArgumentException("decision 只支持 APPROVE/REJECT");
-        }
-        if ("REJECT".equals(decision) && (reason == null || reason.isBlank())) {
-            throw new IllegalArgumentException("拒绝认领必须说明理由");
-        }
-        String result = transactionTemplate.execute(status -> reviewInTransaction(claimId, decision, reason));
-        return new ReviewResult(Objects.requireNonNull(result));
+        ClaimDecision result = transactionTemplate.execute(status -> reviewAs(
+                "cli", claimId, null, decision, reason,
+                "APPROVE".equals(decision) ? "TEACHER_CLAIM_APPROVE" : "TEACHER_CLAIM_REJECT",
+                (schoolId, applicantId, revision) -> {
+                }));
+        ClaimDecision decided = Objects.requireNonNull(result);
+        return new ReviewResult(decided.claimStatus() + " " + decided.claimId());
     }
 
-    private String reviewInTransaction(String claimId, String decision, String reason) {
-        TeacherClaimRow claim = teachingRepository.findClaim(claimId)
-                .orElseThrow(() -> new IllegalArgumentException("认领申请不存在: " + claimId));
-        if (!"PENDING".equals(claim.status())) {
-            throw new IllegalArgumentException("认领申请不是PENDING: " + claim.status());
+    /**
+     * HTTP 与 CLI 共用。expectedRevision 为空时使用锁内读到的版本，供原 CLI 保持原参数。
+     * actor 为 cli 时不冒充 App 超管。
+     */
+    public ClaimDecision reviewAs(String actorId, String claimId, Integer expectedRevision, String decision,
+                                  String reason, String auditAction, ClaimRecheck afterLock) {
+        if (!"APPROVE".equals(decision) && !"REJECT".equals(decision)) {
+            throw new ApiException(ApiCode.VALIDATION_FAILED, "decision 只支持 APPROVE/REJECT");
         }
-        SquareRow square = squareRepository.findByIdForUpdate(claim.squareId())
-                .orElseThrow(() -> new IllegalArgumentException("课程广场不存在: " + claim.squareId()));
+        String note = reason == null ? "" : reason.strip();
+        if (note.isEmpty() || note.length() > 500) {
+            throw new ApiException(ApiCode.VALIDATION_FAILED, "认领说明需为1至500字");
+        }
+        TeacherClaimRow located = teachingRepository.findClaim(claimId)
+                .orElseThrow(() -> new ApiException(ApiCode.RESOURCE_NOT_FOUND));
+        SquareRow square = squareRepository.findByIdForUpdate(located.squareId())
+                .orElseThrow(() -> new ApiException(ApiCode.RESOURCE_NOT_FOUND));
+        TeacherClaimRow claim = teachingRepository.findClaimForUpdate(claimId)
+                .orElseThrow(() -> new ApiException(ApiCode.RESOURCE_NOT_FOUND));
+        if (!"PENDING".equals(claim.status())) {
+            throw new ApiException(ApiCode.REVISION_CONFLICT);
+        }
+        int revision = claim.revision();
+        if (expectedRevision != null && expectedRevision != revision) {
+            throw new ApiException(ApiCode.REVISION_CONFLICT);
+        }
+        if (actorId != null && actorId.equals(claim.userId())) {
+            throw new ApiException(ApiCode.SELF_REVIEW_FORBIDDEN, "不能审核自己的认领申请");
+        }
+        if (afterLock != null) {
+            afterLock.check(square.schoolId(), claim.userId(), revision);
+        }
         if ("REJECT".equals(decision)) {
-            if (teachingRepository.decideClaim(claimId, "REJECTED") != 1) {
-                throw new IllegalArgumentException("认领申请状态已变化");
+            if (teachingRepository.decideClaim(claimId, "REJECTED", revision) != 1) {
+                throw new ApiException(ApiCode.REVISION_CONFLICT);
             }
-            auditService.record("cli", "TEACHER_CLAIM_REJECT", "TEACHER_CLAIM", claimId,
-                    claim.revision(), claim.revision() + 1, reason);
-            return "REJECTED " + claimId;
+            String auditId = auditService.recordReturningId(actorId, auditAction, "TEACHER_CLAIM", claimId,
+                    revision, revision + 1, note);
+            return new ClaimDecision(claimId, "REJECTED", revision + 1, auditId);
         }
 
         UserRow user = userRepository.findById(claim.userId())
-                .orElseThrow(() -> new IllegalArgumentException("认领用户不存在"));
+                .orElseThrow(() -> new ApiException(ApiCode.INVALID_STATE_TRANSITION, "认领用户不存在"));
         if (user.identityStatus() != IdentityStatus.VERIFIED
+                || user.disabled()
+                || !"ACTIVE".equals(user.accountStatus())
                 || !userRepository.findRoles(user.id()).contains(Role.TEACHER)) {
-            throw new IllegalArgumentException("认领用户不是已核验TEACHER");
+            throw new ApiException(ApiCode.INVALID_STATE_TRANSITION, "认领用户不是可登录的已核验教师");
         }
         if (square.verifiedCourseId() != null) {
             VerifiedCourseRow verified = verifiedCourseRepository.findById(square.verifiedCourseId())
-                    .orElseThrow(() -> new IllegalArgumentException("真实教学班不存在"));
+                    .orElseThrow(() -> new ApiException(ApiCode.INVALID_STATE_TRANSITION, "真实教学班不存在"));
             if (!verified.teacherUserId().equals(claim.userId())) {
-                throw new IllegalArgumentException("该广场的核验教师不是认领人");
+                throw new ApiException(ApiCode.INVALID_STATE_TRANSITION, "该广场的核验教师不是认领人");
             }
         }
         if (teachingRepository.activeAssignment(square.id()).isPresent()) {
-            throw new IllegalArgumentException("课程已有当前负责教师，不能通过认领再授予");
+            throw new ApiException(ApiCode.INVALID_STATE_TRANSITION, "课程已有当前负责教师，不能通过认领再授予");
         }
         teachingRepository.ensureActive(square.id(), claim.userId());
         squareRepository.bumpRevisionAndEpoch(square.id());
-        if (teachingRepository.decideClaim(claimId, "APPROVED") != 1) {
-            throw new IllegalArgumentException("认领申请状态已变化");
+        if (teachingRepository.decideClaim(claimId, "APPROVED", revision) != 1) {
+            throw new ApiException(ApiCode.REVISION_CONFLICT);
         }
-        auditService.record("cli", "TEACHER_CLAIM_APPROVE", "TEACHER_CLAIM", claimId,
-                claim.revision(), claim.revision() + 1, reason);
-        return "APPROVED " + claimId;
+        String auditId = auditService.recordReturningId(actorId, auditAction, "TEACHER_CLAIM", claimId,
+                revision, revision + 1, note);
+        return new ClaimDecision(claimId, "APPROVED", revision + 1, auditId);
+    }
+
+    @FunctionalInterface
+    public interface ClaimRecheck {
+        void check(String schoolId, String applicantId, int revision);
+    }
+
+    public record ClaimDecision(String claimId, String claimStatus, int revision, String auditId) {
     }
 
     public record ReviewResult(String summary) {

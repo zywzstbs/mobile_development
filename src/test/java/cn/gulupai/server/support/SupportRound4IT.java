@@ -368,10 +368,10 @@ class SupportRound4IT {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("REPORT_ROUTE_UNAVAILABLE"));
         grant(TEACHER_B, "CONTENT_REPORT_HANDLE", "SQUARE", "sq_r4_b");
-        jdbc.update("UPDATE app_user SET disabled=true WHERE id=?", TEACHER_B);
+        jdbc.update("UPDATE app_user SET disabled=true, account_status='DISABLED' WHERE id=?", TEACHER_B);
         postReport(student, "R2", "client-b2", topicB)
                 .andExpect(status().isServiceUnavailable());
-        jdbc.update("UPDATE app_user SET disabled=false WHERE id=?", TEACHER_B);
+        jdbc.update("UPDATE app_user SET disabled=false, account_status='ACTIVE' WHERE id=?", TEACHER_B);
         jdbc.update("UPDATE operator_grant SET active=false WHERE user_id=? AND capability='CONTENT_REPORT_HANDLE'",
                 TEACHER_B);
         postReport(student, "R3", "client-b3", topicB)

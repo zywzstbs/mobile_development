@@ -1,6 +1,6 @@
 {
   "sourceSha256": "8eb3173c599fc5c970fb4a43a78aa9d1d61ecd027ee4b068e38c08ee7dac1ae4",
-  "interfaceCount": 284,
+  "interfaceCount": 301,
   "items": [
     {
       "id": "AUTH-01",
@@ -61,6 +61,108 @@
       "route": "POST /auth/registrations",
       "status": "后端验证通过",
       "evidence": "RegistrationP62IT"
+    },
+    {
+      "id": "AUTH-11",
+      "route": "POST /auth/reauthentications",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-01",
+      "route": "GET /admin/dashboard",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-02",
+      "route": "GET /admin/users",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-03",
+      "route": "GET /admin/users/{userId}",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-04",
+      "route": "POST /admin/users/{userId}/status-changes",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-05",
+      "route": "POST /admin/users/{userId}/password-reset-requests",
+      "status": "未开放（501 ENDPOINT_NOT_IMPLEMENTED）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-06",
+      "route": "GET /admin/teacher-applications",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-07",
+      "route": "GET /admin/teacher-applications/{applicationId}",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-08",
+      "route": "POST /admin/teacher-applications/{applicationId}/decisions",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-09",
+      "route": "GET /admin/courses",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-10",
+      "route": "GET /admin/courses/{squareId}",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-11",
+      "route": "POST /admin/course-claims/{claimId}/decisions",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-12",
+      "route": "POST /admin/admin-grants/{grantId}/revocations",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-13",
+      "route": "GET /admin/audit-logs",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-14",
+      "route": "GET /admin/super-admins",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-15",
+      "route": "POST /admin/super-admins",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
+    },
+    {
+      "id": "ADMIN-16",
+      "route": "POST /admin/super-admins/{userId}/revocations",
+      "status": "已按R1～R7修复实现，待真实库复验（新P66用例未执行）",
+      "evidence": "PlatformP66IT"
     },
     {
       "id": "COURSE-01",

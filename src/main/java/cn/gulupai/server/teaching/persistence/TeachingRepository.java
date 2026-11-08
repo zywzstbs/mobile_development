@@ -115,6 +115,16 @@ public class TeachingRepository {
                 .stream().findFirst();
     }
 
+    public Optional<TeacherClaimRow> findClaimForUpdate(String id) {
+        return jdbcTemplate.query("""
+                        SELECT id, square_id, user_id, status, message,
+                               proof_refs_json::text AS proof_refs_json, revision, created_at
+                        FROM teacher_claim WHERE id = ?
+                        FOR UPDATE
+                        """, claimMapper, id)
+                .stream().findFirst();
+    }
+
     public void insertClaim(String id, String squareId, String userId, String message, String proofRefsJson) {
         jdbcTemplate.update("""
                 INSERT INTO teacher_claim
@@ -132,12 +142,12 @@ public class TeachingRepository {
                 """, claimMapper, userId);
     }
 
-    public int decideClaim(String id, String status) {
+    public int decideClaim(String id, String status, int expectedRevision) {
         return jdbcTemplate.update("""
                 UPDATE teacher_claim
                 SET status = ?, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ? AND status = 'PENDING'
-                """, status, id);
+                WHERE id = ? AND status = 'PENDING' AND revision = ?
+                """, status, id, expectedRevision);
     }
 
     public Optional<TeacherTransferRow> pendingTransfer(String squareId) {

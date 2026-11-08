@@ -18,12 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -31,7 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 
 /**
  * 演示场景构造器。口令只写入调用方指定的私有文件，不出现在摘要或仓库样例里。
@@ -80,32 +75,36 @@ public class DemoSeedService {
             throw new IllegalArgumentException("demo-seed 写入时需要 --app.cli.credentials-file");
         }
         List<Person> people = roster();
-        Map<String, String> passwords = dryRun ? generated(people) : loadOrCreatePasswords(people, credentialsFile);
-        Path userFile = null;
-        Path academicFile = null;
-        try {
-            userFile = writeJson(new ImportFile(List.of(new SchoolInput(SCHOOL, "演示大学", "Asia/Shanghai")),
-                    userInputs(people, passwords)));
-            userImport.importUsers(userFile, dryRun);
-            if (!dryRun) {
-                academicFile = writeJson(academicFile());
-                academicImport.importAcademic(academicFile, false);
-                helpImport.importArticles(HELP_FILE, false, actorId);
-                for (String capability : List.of(
-                        "HELP_ADMIN", "HELP_CONTENT_WRITE", "SUPPORT_HANDLE", "CONTENT_REVIEW")) {
-                    grants.grant(OPERATOR, capability, "GLOBAL", null, true, false, actorId);
+        // 凭据与导入中间文件都走同一套私有权限实现：任何平台都不再有“不支持权限位就跳过”的分支。
+        try (PrivateCredentialFiles privateFiles = PrivateCredentialFiles.create()) {
+            Map<String, String> passwords = dryRun
+                    ? generated(people)
+                    : loadOrCreatePasswords(people, credentialsFile, privateFiles);
+            PrivateCredentialFiles.PrivateJson userFile = null;
+            PrivateCredentialFiles.PrivateJson academicFile = null;
+            try {
+                userFile = writeJson(privateFiles,
+                        new ImportFile(List.of(new SchoolInput(SCHOOL, "演示大学", "Asia/Shanghai")),
+                                userInputs(people, passwords)));
+                userImport.importUsers(userFile.path(), dryRun);
+                if (!dryRun) {
+                    academicFile = writeJson(privateFiles, academicFile());
+                    academicImport.importAcademic(academicFile.path(), false);
+                    helpImport.importArticles(HELP_FILE, false, actorId);
+                    for (String capability : List.of(
+                            "HELP_ADMIN", "HELP_CONTENT_WRITE", "SUPPORT_HANDLE", "CONTENT_REVIEW")) {
+                        grants.grant(OPERATOR, capability, "GLOBAL", null, true, false, actorId);
+                    }
+                    ensureSquares();
+                    scenarios.seed();
+                    audit.record(actorId, "DEMO_SEED", "SCHOOL", SCHOOL, null, null, "scenario=full");
                 }
-                ensureSquares();
-                scenarios.seed();
-                audit.record(actorId, "DEMO_SEED", "SCHOOL", SCHOOL, null, null, "scenario=full");
+            } finally {
+                closeQuietly(academicFile);
+                closeQuietly(userFile);
             }
-        } catch (IOException ex) {
-            throw new IllegalArgumentException("无法准备演示导入文件", ex);
-        } finally {
-            deleteIfExists(userFile);
-            deleteIfExists(academicFile);
+            return new SeedSummary(scenario, people.size(), 2, 18, 4, dryRun);
         }
-        return new SeedSummary(scenario, people.size(), 2, 18, 4, dryRun);
     }
 
     private List<Person> roster() {
@@ -180,51 +179,41 @@ public class DemoSeedService {
         return passwords;
     }
 
-    private Map<String, String> loadOrCreatePasswords(List<Person> people, Path file) {
-        Map<String, String> existing = readPasswords(file);
+    private Map<String, String> loadOrCreatePasswords(List<Person> people, Path file,
+                                                      PrivateCredentialFiles privateFiles) {
+        Map<String, String> existing = readPasswords(file, privateFiles);
         Map<String, String> passwords = new LinkedHashMap<>();
         for (Person person : people) {
             passwords.put(person.loginId(), existing.getOrDefault(person.loginId(), password()));
         }
-        writePrivate(file, passwords);
+        writePrivate(file, passwords, privateFiles);
         return passwords;
     }
 
-    private Map<String, String> readPasswords(Path file) {
+    private Map<String, String> readPasswords(Path file, PrivateCredentialFiles privateFiles) {
         Map<String, String> passwords = new LinkedHashMap<>();
-        if (!Files.exists(file)) {
+        Optional<String> content = privateFiles.readExistingPrivateCredentials(file);
+        if (content.isEmpty()) {
             return passwords;
         }
-        try {
-            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
-                if (line.isBlank() || line.startsWith("#")) {
-                    continue;
-                }
-                int split = line.indexOf(' ');
-                if (split <= 0) {
-                    throw new IllegalArgumentException("凭据文件格式无效");
-                }
-                passwords.put(line.substring(0, split), line.substring(split + 1));
+        for (String line : content.get().split("\\R")) {
+            if (line.isBlank() || line.startsWith("#")) {
+                continue;
             }
-            return passwords;
-        } catch (IOException ex) {
-            throw new IllegalArgumentException("无法读取凭据文件", ex);
+            int split = line.indexOf(' ');
+            if (split <= 0) {
+                throw new IllegalArgumentException("凭据文件格式无效");
+            }
+            passwords.put(line.substring(0, split), line.substring(split + 1));
         }
+        return passwords;
     }
 
-    private void writePrivate(Path file, Map<String, String> passwords) {
+    private void writePrivate(Path file, Map<String, String> passwords, PrivateCredentialFiles privateFiles) {
         StringBuilder body = new StringBuilder("# 演示登录凭据。不要提交到仓库，不要写入接口文档。\n");
         passwords.forEach((login, password) -> body.append(login).append(' ').append(password).append('\n'));
-        try {
-            if (file.getParent() != null) {
-                Files.createDirectories(file.getParent());
-            }
-            Files.writeString(file, body.toString(), StandardCharsets.UTF_8);
-            Files.setPosixFilePermissions(file, Set.of(
-                    PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
-        } catch (IOException ex) {
-            throw new IllegalArgumentException("无法写入凭据文件", ex);
-        }
+        // 明文只进入已校验权限的暂存文件；目标文件在写入前后都不存在“宽权限窗口”。
+        privateFiles.writePrivateCredentials(file, body.toString());
     }
 
     private void ensureSquares() {
@@ -251,20 +240,13 @@ public class DemoSeedService {
                 """, id, courseId, SCHOOL, TERM, name, teacherName, Hashing.sha256Hex(key), number);
     }
 
-    private Path writeJson(Object value) throws IOException {
-        Path file = Files.createTempFile("gulupai-demo-", ".json");
-        Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
-        objectMapper.writeValue(file.toFile(), value);
-        return file;
+    private PrivateCredentialFiles.PrivateJson writeJson(PrivateCredentialFiles privateFiles, Object value) {
+        return privateFiles.createPrivateJson(value, objectMapper);
     }
 
-    private static void deleteIfExists(Path file) {
-        if (file != null) {
-            try {
-                Files.deleteIfExists(file);
-            } catch (IOException ignored) {
-                // 临时导入文件删除失败不改变已经提交的业务数据。
-            }
+    private static void closeQuietly(PrivateCredentialFiles.PrivateJson resource) {
+        if (resource != null) {
+            resource.close();
         }
     }
 

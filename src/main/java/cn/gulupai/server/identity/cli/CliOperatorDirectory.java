@@ -2,7 +2,6 @@ package cn.gulupai.server.identity.cli;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sun.security.auth.module.UnixSystem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.EnumerablePropertySource;
@@ -17,8 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -28,9 +25,10 @@ import java.util.Set;
 /**
  * 受控运维身份到审核主体的映射。
  *
- * <p>审核人的操作系统身份取自内核有效用户（{@code /proc/self/status} 的 euid，
- * 再用 {@code getpwuid} 解析用户名），不读取 {@code user.name} 或 {@code USER}。
- * 这两处都能在启动命令里改掉，不能当作审核人。
+ * <p>审核人的操作系统身份取自 {@link TrustedOsIdentity}：Linux 上是内核有效用户
+ * （{@code /proc/self/status} 的 euid 再用 {@code getpwuid} 解析用户名），Windows 上是
+ * 进程令牌的用户 SID（规范形式 {@code sid:s-1-5-21-...}）。{@code user.name}、{@code USER}、
+ * {@code USERNAME}、{@code USERDOMAIN} 都能在启动命令里改掉，一律不读。
  *
  * <p>审核映射只来自类路径上的 {@code cli-operators.yml}。命令行、JVM 系统属性、
  * 环境变量和 Spring 配置里的 {@code app.cli.operators} 一律拒绝启动，避免一次
@@ -64,13 +62,13 @@ public class CliOperatorDirectory {
     }
 
     public Reviewer require(String osUser) {
-        String current = osUser == null ? "" : osUser.strip();
+        String current = TrustedOsIdentity.normalize(osUser);
         if (current.isEmpty()) {
             throw new IllegalArgumentException("无法确认当前操作系统用户");
         }
         List<Operator> matched = new ArrayList<>();
         for (Operator operator : operators) {
-            if (operator != null && current.equals(text(operator.getOsUser()))) {
+            if (operator != null && current.equals(TrustedOsIdentity.normalize(text(operator.getOsUser())))) {
                 matched.add(operator);
             }
         }
@@ -125,19 +123,7 @@ public class CliOperatorDirectory {
     }
 
     static String currentOsUser() {
-        try {
-            long effectiveUid = effectiveUid();
-            UnixSystem unix = new UnixSystem();
-            String username = unix.getUsername();
-            if (unix.getUid() != effectiveUid || username == null || username.isBlank()) {
-                throw new IllegalArgumentException("无法确认当前操作系统用户");
-            }
-            return username.strip();
-        } catch (IllegalArgumentException ex) {
-            throw ex;
-        } catch (RuntimeException ex) {
-            throw new IllegalArgumentException("无法确认当前操作系统用户");
-        }
+        return TrustedOsIdentity.current();
     }
 
     private static boolean jsonDefinesOperators(String name, Object value) {
@@ -151,24 +137,6 @@ public class CliOperatorDirectory {
         } catch (IOException ex) {
             throw new IllegalStateException(OVERRIDE_MESSAGE);
         }
-    }
-
-    private static long effectiveUid() {
-        try {
-            for (String line : Files.readAllLines(Path.of("/proc/self/status"))) {
-                if (!line.startsWith("Uid:")) {
-                    continue;
-                }
-                String[] fields = line.substring("Uid:".length()).trim().split("\\s+");
-                if (fields.length < 2) {
-                    break;
-                }
-                return Long.parseLong(fields[1]);
-            }
-        } catch (IOException | NumberFormatException ex) {
-            throw new IllegalArgumentException("无法确认当前操作系统用户");
-        }
-        throw new IllegalArgumentException("无法确认当前操作系统用户");
     }
 
     private static List<Operator> readProtectedOperators() {

@@ -116,6 +116,12 @@ class DeliveryP06IT {
                 .andReturn());
         String agreementId = jdbcTemplate.queryForObject(
                 "SELECT id FROM agreement WHERE task_id = ?", String.class, task.get("id").asText());
+        // L03：任务详情里的 agreementId 必须指向以该 task_id 创建的约定，且不是任务 ID 本身。
+        assertThat(task.get("agreementId").asText()).isEqualTo(agreementId)
+                .isNotEqualTo(task.get("id").asText());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT task_id FROM agreement WHERE id = ?", String.class, agreementId))
+                .isEqualTo(task.get("id").asText());
         mockMvc.perform(get("/api/v1/agreements/{id}", agreementId).header("Authorization", bearer(stranger)))
                 .andExpect(status().isForbidden());
         JsonNode agreement = data(mockMvc.perform(get("/api/v1/agreements/{id}", agreementId)

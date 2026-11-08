@@ -141,6 +141,21 @@ class FlywayMigrationIT {
                   AND table_name = 'acceptance' AND column_name = 'revision'
                 """, String.class);
         assertThat(acceptanceRevision).isEqualTo("NO");
+
+        Integer platformTables = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM information_schema.tables
+                WHERE table_schema = current_schema()
+                  AND table_name IN ('platform_admin_grant', 'platform_admin_capability',
+                                     'platform_admin_scope', 'platform_admin_lock',
+                                     'admin_reauthentication', 'admin_operation')
+                """, Integer.class);
+        assertThat(platformTables).isEqualTo(6);
+        String roleCheck = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid) FROM pg_constraint
+                WHERE conname = 'ck_user_role_value'
+                  AND connamespace = current_schema()::regnamespace
+                """, String.class);
+        assertThat(roleCheck).contains("SUPER_ADMIN");
     }
 
     @Test

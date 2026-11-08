@@ -7,6 +7,7 @@ import cn.gulupai.server.identity.domain.IdentityStatus;
 import cn.gulupai.server.identity.domain.Role;
 import cn.gulupai.server.identity.persistence.UserRepository;
 import cn.gulupai.server.identity.persistence.UserRow;
+import cn.gulupai.server.platform.persistence.PlatformRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,19 +39,22 @@ public class AdminImportService {
     private final PasswordEncoder passwordEncoder;
     private final TransactionTemplate transactionTemplate;
     private final AuditService auditService;
+    private final PlatformRepository platformRepository;
 
     public AdminImportService(ObjectMapper objectMapper,
                               JdbcTemplate jdbcTemplate,
                               UserRepository userRepository,
                               PasswordEncoder passwordEncoder,
                               TransactionTemplate transactionTemplate,
-                              AuditService auditService) {
+                              AuditService auditService,
+                              PlatformRepository platformRepository) {
         this.objectMapper = objectMapper;
         this.jdbcTemplate = jdbcTemplate;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.transactionTemplate = transactionTemplate;
         this.auditService = auditService;
+        this.platformRepository = platformRepository;
     }
 
     public ImportSummary importUsers(Path file, boolean dryRun) {
@@ -71,20 +76,17 @@ public class AdminImportService {
         ImportSummary summary = new ImportSummary(plan.schools.size(), plan.created,
                 plan.updated, dryRun, inputHash);
         if (dryRun) {
+            preflightPlatformAccounts(plan);
             return summary;
         }
 
         ImportSummary applied = transactionTemplate.execute(status -> {
-            for (SchoolPlan school : plan.schools) {
-                upsertSchool(school);
-            }
-            for (UserPlan user : plan.users) {
-                String userId = upsertUser(user);
-                jdbcTemplate.update("DELETE FROM user_role WHERE user_id = ?", userId);
-                for (Role role : user.roles) {
-                    jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, ?)",
-                            userId, role.name());
-                }
+            platformRepository.lockAdminConstraint();
+            int recoverableBefore = platformRepository.countPlatformRecoveryAdmins();
+            applyBatch(plan);
+            int recoverableAfter = platformRepository.countPlatformRecoveryAdmins();
+            if (recoverableBefore > 0 && recoverableAfter == 0) {
+                throw new IllegalStateException("本次导入会让平台失去最后一位可恢复管理员，已整批回滚");
             }
             String batchId = UUID.randomUUID().toString();
             Map<String, Object> summaryJson = new LinkedHashMap<>();
@@ -101,6 +103,94 @@ public class AdminImportService {
             return summary;
         });
         return applied == null ? summary : applied;
+    }
+
+    /**
+     * 整批写入：先按 id 稳定顺序锁住受影响的现有账号并读出平台事实，全部校验通过后才落库。
+     * 逐行校验会漏掉“一批次里彼此都是最后一位管理员”的情况，因此恢复能力在批次结束后整体复核。
+     */
+    private void applyBatch(Plan plan) {
+        for (SchoolPlan school : plan.schools) {
+            upsertSchool(school);
+        }
+        List<UserPlan> ordered = new ArrayList<>(plan.users);
+        ordered.sort(Comparator.comparing(UserPlan::id));
+        Map<String, PlatformAccount> accounts = new LinkedHashMap<>();
+        for (UserPlan user : ordered) {
+            if (user.isNew()) {
+                continue;
+            }
+            accounts.put(user.id(), readAccount(user.id(), true));
+        }
+        for (UserPlan user : ordered) {
+            PlatformAccount account = accounts.get(user.id());
+            if (account != null) {
+                requireSensitiveFieldsUnchanged(user, account);
+            }
+        }
+        for (UserPlan user : ordered) {
+            String userId = upsertUser(user, accounts.get(user.id()));
+            // 只重建普通业务角色：SUPER_ADMIN 由平台授权服务管理，导入不得删除有效平台角色。
+            jdbcTemplate.update("DELETE FROM user_role WHERE user_id = ? AND role <> 'SUPER_ADMIN'", userId);
+            for (Role role : user.roles) {
+                jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, ?)",
+                        userId, role.name());
+            }
+        }
+    }
+
+    /** dry-run 不做任何写入，但必须按真实规则报出会被拒绝的敏感变更。 */
+    private void preflightPlatformAccounts(Plan plan) {
+        for (UserPlan user : plan.users) {
+            if (user.isNew()) {
+                continue;
+            }
+            requireSensitiveFieldsUnchanged(user, readAccount(user.id(), false));
+        }
+    }
+
+    private PlatformAccount readAccount(String userId, boolean lock) {
+        var found = lock ? platformRepository.lockUser(userId) : platformRepository.findUser(userId);
+        PlatformRepository.ManagedUser user = found
+                .orElseThrow(() -> new IllegalStateException("导入目标账号在事务内消失: " + userId));
+        boolean roleHeld = platformRepository.rolesOf(userId).contains(Role.SUPER_ADMIN.name());
+        boolean grantActive = platformRepository.findActiveGrant(userId).isPresent();
+        String passwordHash = jdbcTemplate.query("SELECT password_hash FROM app_user WHERE id = ?",
+                (rs, row) -> rs.getString("password_hash"), userId).stream().findFirst().orElse(null);
+        return new PlatformAccount(user, roleHeld, grantActive, passwordHash);
+    }
+
+    /**
+     * 已有平台管理员的停用、身份资格和凭据只能由受控管理操作改变。普通导入若试图修改这些字段
+     * 就明确拒绝并指出替代路径，既不静默忽略输入，也不让批量导入成为绕过停用或隐式换密的入口。
+     */
+    private void requireSensitiveFieldsUnchanged(UserPlan plan, PlatformAccount account) {
+        if (!account.platformAdmin()) {
+            return;
+        }
+        if (account.roleHeld() != account.grantActive()) {
+            throw new IllegalArgumentException("账号 " + plan.loginId()
+                    + " 的平台角色与有效授权不一致，普通导入不能修复；请先用受控授权修复流程恢复");
+        }
+        if (plan.disabled() != account.user().disabled()) {
+            throw new IllegalArgumentException("账号 " + plan.loginId()
+                    + " 是平台管理员，普通导入不能改变停用状态；请改用受控管理操作");
+        }
+        if (!plan.status().name().equals(account.user().identityStatus())) {
+            throw new IllegalArgumentException("账号 " + plan.loginId()
+                    + " 是平台管理员，普通导入不能改变身份核验状态；请改用受控管理操作");
+        }
+        if (account.passwordHash() == null || !passwordEncoder.matches(plan.rawPassword(), account.passwordHash())) {
+            throw new IllegalArgumentException("账号 " + plan.loginId()
+                    + " 是平台管理员，普通导入不能修改口令；请改用受控口令重置流程");
+        }
+    }
+
+    private record PlatformAccount(PlatformRepository.ManagedUser user, boolean roleHeld, boolean grantActive,
+                                   String passwordHash) {
+        boolean platformAdmin() {
+            return roleHeld || grantActive;
+        }
     }
 
     private Plan validate(ImportFile input) {
@@ -195,7 +285,7 @@ public class AdminImportService {
                 throw new IllegalArgumentException("同一学校学号已被其他账号使用: " + studentNo);
             }
             users.add(new UserPlan(finalId, schoolId, loginId, studentNo, displayName,
-                    passwordHash, status, disabled, roles, skills, isNew));
+                    user.password(), passwordHash, status, disabled, roles, skills, isNew));
         }
         return new Plan(schools, users, created, updated);
     }
@@ -216,12 +306,24 @@ public class AdminImportService {
                 """, school.id(), school.name(), school.timezone());
     }
 
-    private String upsertUser(UserPlan user) {
+    private String upsertUser(UserPlan user, PlatformAccount account) {
+        if (account != null && account.platformAdmin()) {
+            // 管理员只随导入更新展示性字段：角色、能力、范围、凭据与可用性由受控管理操作负责。
+            jdbcTemplate.update("""
+                    UPDATE app_user
+                    SET student_no = ?, display_name = ?, skills_json = ?::jsonb,
+                        revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """, user.studentNo(), user.displayName(), writeJson(user.skills()), user.id());
+            return user.id();
+        }
+        String accountStatus = user.disabled() ? "DISABLED" : "ACTIVE";
+        String eligibility = user.disabled() ? "IMPORT_DISABLED" : "VERIFIED_ACTIVE";
         return jdbcTemplate.queryForObject("""
                 INSERT INTO app_user
                     (id, school_id, login_id, student_no, display_name, password_hash,
-                     identity_status, disabled, skills_json, revision)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, 1)
+                     identity_status, disabled, account_status, eligibility_source, skills_json, revision)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, 1)
                 ON CONFLICT (login_id) DO UPDATE
                 SET school_id = EXCLUDED.school_id,
                     student_no = EXCLUDED.student_no,
@@ -229,13 +331,16 @@ public class AdminImportService {
                     password_hash = EXCLUDED.password_hash,
                     identity_status = EXCLUDED.identity_status,
                     disabled = EXCLUDED.disabled,
+                    account_status = EXCLUDED.account_status,
+                    eligibility_source = EXCLUDED.eligibility_source,
                     skills_json = EXCLUDED.skills_json,
                     revision = app_user.revision + 1,
                     updated_at = CURRENT_TIMESTAMP
                 RETURNING id
                 """, String.class,
                 user.id(), user.schoolId(), user.loginId(), user.studentNo(), user.displayName(),
-                user.passwordHash(), user.status().name(), user.disabled(), writeJson(user.skills()));
+                user.passwordHash(), user.status().name(), user.disabled(), accountStatus, eligibility,
+                writeJson(user.skills()));
     }
 
     private List<Role> parseRoles(List<String> roles, String loginId) {
@@ -244,11 +349,16 @@ public class AdminImportService {
         }
         Set<Role> result = new HashSet<>();
         for (String raw : roles) {
+            Role parsed;
             try {
-                result.add(Role.valueOf(raw));
+                parsed = Role.valueOf(raw);
             } catch (Exception ex) {
                 throw new IllegalArgumentException("用户 " + loginId + " 的角色无效: " + raw);
             }
+            if (parsed == Role.SUPER_ADMIN) {
+                throw new IllegalArgumentException("用户 " + loginId + " 不能通过导入获得 SUPER_ADMIN");
+            }
+            result.add(parsed);
         }
         List<Role> sorted = new ArrayList<>(result);
         sorted.sort(java.util.Comparator.comparingInt(Enum::ordinal));
@@ -338,8 +448,11 @@ public class AdminImportService {
     private record SchoolPlan(String id, String name, String timezone) {
     }
 
+    /**
+     * @param rawPassword 仅用于与现有哈希做 {@code PasswordEncoder.matches} 核对，不落库、不输出。
+     */
     private record UserPlan(String id, String schoolId, String loginId, String studentNo,
-                            String displayName, String passwordHash, IdentityStatus status,
+                            String displayName, String rawPassword, String passwordHash, IdentityStatus status,
                             boolean disabled, List<Role> roles, List<String> skills, boolean isNew) {
     }
 

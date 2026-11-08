@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * P16 第一步：Spring 实际映射与 07 索引、接口覆盖清单精确对齐。
- * 健康检查和文件字节端点不属于业务接口。P62 起目录为 284。
+ * 健康检查和文件字节端点不属于业务接口。P66 起目录为 301，其中 P58 历史目录仍为 284。
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -43,8 +43,8 @@ class RouteCoverageIT {
         Map<String, String> checklist = readChecklist();
         Map<String, String> index = readIndexSummary();
 
-        assertThat(checklist).hasSize(284);
-        assertThat(index).hasSize(284);
+        assertThat(checklist).hasSize(301);
+        assertThat(index).hasSize(301);
         assertThat(index.keySet()).containsExactlyInAnyOrderElementsOf(checklist.keySet());
 
         List<String> documentMismatches = new ArrayList<>();
@@ -57,7 +57,7 @@ class RouteCoverageIT {
         assertThat(documentMismatches).as("07 索引与 JSON 清单路由不一致").isEmpty();
 
         Set<String> expected = new TreeSet<>(checklist.values());
-        assertThat(expected).as("方法+路径必须唯一").hasSize(284);
+        assertThat(expected).as("方法+路径必须唯一").hasSize(301);
 
         Set<String> business = new TreeSet<>();
         Set<String> infrastructure = new TreeSet<>();
@@ -109,6 +109,24 @@ class RouteCoverageIT {
             assertThat(catalog.put(id, route)).as("P58 重复接口 " + id).isNull();
         }
         assertThat(catalog).hasSize(284);
+        Set<String> p66 = Set.of(
+                "POST /auth/reauthentications",
+                "GET /admin/dashboard",
+                "GET /admin/users",
+                "GET /admin/users/{userId}",
+                "POST /admin/users/{userId}/status-changes",
+                "POST /admin/users/{userId}/password-reset-requests",
+                "GET /admin/teacher-applications",
+                "GET /admin/teacher-applications/{applicationId}",
+                "POST /admin/teacher-applications/{applicationId}/decisions",
+                "GET /admin/courses",
+                "GET /admin/courses/{squareId}",
+                "POST /admin/course-claims/{claimId}/decisions",
+                "POST /admin/admin-grants/{grantId}/revocations",
+                "GET /admin/audit-logs",
+                "GET /admin/super-admins",
+                "POST /admin/super-admins",
+                "POST /admin/super-admins/{userId}/revocations");
         Set<String> business = new TreeSet<>();
         handlerMapping.getHandlerMethods().forEach((info, handler) -> {
             if (isTestFixture(handler) || info.getPathPatternsCondition() == null) {
@@ -124,7 +142,12 @@ class RouteCoverageIT {
                 }
             }
         });
-        assertThat(business).containsExactlyInAnyOrderElementsOf(new TreeSet<>(catalog.values()));
+        Set<String> historical = new TreeSet<>(business);
+        historical.removeAll(p66);
+        assertThat(historical).containsExactlyInAnyOrderElementsOf(new TreeSet<>(catalog.values()));
+        Set<String> added = new TreeSet<>(business);
+        added.removeAll(catalog.values());
+        assertThat(added).containsExactlyInAnyOrderElementsOf(p66);
     }
 
     private static void classify(Set<String> business, Set<String> infrastructure, Set<String> testFixtures,
@@ -158,7 +181,7 @@ class RouteCoverageIT {
 
     private static Map<String, String> readChecklist() throws Exception {
         JsonNode root = new ObjectMapper().readTree(Path.of("docs/backend/接口覆盖清单.json").toFile());
-        assertThat(root.path("interfaceCount").asInt()).isEqualTo(284);
+        assertThat(root.path("interfaceCount").asInt()).isEqualTo(301);
         Map<String, String> routes = new LinkedHashMap<>();
         Set<String> seenRoutes = new TreeSet<>();
         for (JsonNode item : root.path("items")) {

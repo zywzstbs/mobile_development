@@ -45,40 +45,71 @@ public class RegistrationReviewService {
     public String review(String applicationId, int expectedRevision, String decision,
                          String reason) {
         CliOperatorDirectory.Reviewer reviewer = operators.requireCurrent();
+        boolean approve = "APPROVE".equals(decision == null ? "" : decision.strip());
+        ReviewOutcome outcome = reviewAs(reviewer.subjectId(), applicationId, expectedRevision, decision, reason,
+                approve ? "REGISTRATION_APPROVE" : "REGISTRATION_REJECT", row -> {
+                });
+        return outcome.applicationId() + " " + outcome.storedStatus() + " revision=" + outcome.revision();
+    }
+
+    /**
+     * 教师申请决定。调用方必须已经确认 actorId 是可信操作者；正文不能指定审核人。
+     * 管理接口把库存 ACTIVE 映射为 APPROVED，这里仍写入原申请状态。
+     */
+    @Transactional
+    public ReviewOutcome reviewAs(String actorId, String applicationId, int expectedRevision, String decision,
+                                  String reason, String auditAction, ReviewGuard afterLock) {
         String normalizedDecision = decision == null ? "" : decision.strip();
         if (!"APPROVE".equals(normalizedDecision) && !"REJECT".equals(normalizedDecision)) {
-            throw new IllegalArgumentException("decision 只能是 APPROVE 或 REJECT");
+            throw new ApiException(ApiCode.VALIDATION_FAILED, "decision 只能是 APPROVE 或 REJECT");
         }
         String reviewReason = reason == null ? "" : reason.strip();
         if (reviewReason.isEmpty() || reviewReason.length() > 500) {
-            throw new IllegalArgumentException("审核理由需为1至500字");
+            throw new ApiException(ApiCode.VALIDATION_FAILED, "审核理由需为1至500字");
         }
         RegistrationRepository.ApplicationRow row = repository.lockApplication(applicationId)
-                .orElseThrow(() -> new IllegalArgumentException("注册申请不存在"));
-        if (reviewer.subjectId().equals(row.userId())) {
-            throw new ApiException(ApiCode.FORBIDDEN, "不能审核自己的申请");
+                .orElseThrow(() -> new ApiException(ApiCode.RESOURCE_NOT_FOUND));
+        if (actorId.equals(row.userId())) {
+            throw new ApiException(ApiCode.SELF_REVIEW_FORBIDDEN, "不能审核自己的申请");
         }
         if (!"PENDING_REVIEW".equals(row.status()) || !"TEACHER".equals(row.requestedRole())) {
-            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+            throw new ApiException(ApiCode.REVISION_CONFLICT);
+        }
+        if (row.revision() != expectedRevision) {
+            throw new ApiException(ApiCode.REVISION_CONFLICT);
+        }
+        if (afterLock != null) {
+            afterLock.check(row);
         }
         boolean approve = "APPROVE".equals(normalizedDecision);
-        String status = approve ? "ACTIVE" : "REJECTED";
-        int updated = repository.decide(applicationId, expectedRevision, status, reviewer.subjectId(),
+        String storedStatus = approve ? "ACTIVE" : "REJECTED";
+        String eligibility = approve ? "VERIFIED_ACTIVE" : "REGISTRATION_REJECTED";
+        int updated = repository.decide(applicationId, expectedRevision, storedStatus, actorId,
                 clock.instant(), reviewReason);
         if (updated != 1) {
-            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+            throw new ApiException(ApiCode.REVISION_CONFLICT);
         }
-        if (repository.updateAccountStatus(row.userId(), status) != 1) {
-            throw new ApiException(ApiCode.RESOURCE_CHANGED);
+        if (repository.updatePendingAccount(row.userId(), storedStatus, eligibility) != 1) {
+            throw new ApiException(ApiCode.INVALID_STATE_TRANSITION, "账号已停用或不再处于待审，不能用审核改变登录资格");
         }
         if (approve) {
             repository.insertRole(row.userId(), "TEACHER");
         } else {
             repository.revokeSessions(row.userId(), clock.instant());
         }
-        auditService.record(reviewer.subjectId(), approve ? "REGISTRATION_APPROVE" : "REGISTRATION_REJECT",
-                "REGISTRATION", applicationId, expectedRevision, expectedRevision + 1, reviewReason);
-        return applicationId + " " + status + " revision=" + (expectedRevision + 1);
+        String auditId = auditService.recordReturningId(actorId, auditAction, "REGISTRATION", applicationId,
+                expectedRevision, expectedRevision + 1, reviewReason);
+        return new ReviewOutcome(applicationId, storedStatus, approve ? "APPROVED" : "REJECTED",
+                expectedRevision + 1, auditId);
+    }
+
+    @FunctionalInterface
+    public interface ReviewGuard {
+        void check(RegistrationRepository.ApplicationRow row);
+    }
+
+    public record ReviewOutcome(String applicationId, String storedStatus, String apiStatus,
+                                int revision, String auditId) {
     }
 
     @Transactional

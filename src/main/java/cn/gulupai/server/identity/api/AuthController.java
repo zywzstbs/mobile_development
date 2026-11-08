@@ -3,6 +3,9 @@ package cn.gulupai.server.identity.api;
 import cn.gulupai.server.common.api.ApiResponse;
 import cn.gulupai.server.common.security.AuthenticatedUser;
 import cn.gulupai.server.identity.application.AuthService;
+import cn.gulupai.server.platform.api.PlatformRequests;
+import cn.gulupai.server.platform.api.PlatformViews;
+import cn.gulupai.server.platform.application.AdminReauthenticationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AdminReauthenticationService reauthenticationService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AdminReauthenticationService reauthenticationService) {
         this.authService = authService;
+        this.reauthenticationService = reauthenticationService;
     }
 
     @PostMapping("/auth/sessions")
@@ -32,6 +37,14 @@ public class AuthController {
     @PostMapping("/auth/sessions/refresh")
     public ApiResponse<SessionView> refresh(@Valid @RequestBody RefreshRequest request) {
         return ApiResponse.ok(authService.refresh(request));
+    }
+
+    @PostMapping("/auth/reauthentications")
+    public ApiResponse<PlatformViews.ReauthenticationView> reauthenticate(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @RequestBody PlatformRequests.ReauthenticationRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.ok(reauthenticationService.reauthenticate(principal, clientIp(servletRequest), request));
     }
 
     @DeleteMapping("/auth/sessions/current")

@@ -1,17 +1,23 @@
 package cn.gulupai.server.identity.cli;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.SimpleCommandLinePropertySource;
 import org.springframework.core.env.StandardEnvironment;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CliOperatorDirectoryTest {
+
+    private static final String SID_ONE = "sid:s-1-5-21-3458183512-1442337674-3814424059-500";
+    private static final String SID_TWO = "sid:s-1-5-21-3458183512-1442337674-3814424059-501";
 
     @Test
     void mapsOsUserToSubjectAndKeepsDisplayLabelSeparate() {
@@ -33,6 +39,9 @@ class CliOperatorDirectoryTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("未获注册审核授权");
         assertThatThrownBy(() -> directory.require("  "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("无法确认");
+        assertThatThrownBy(() -> directory.require(null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("无法确认");
         assertThatThrownBy(() -> new CliOperatorDirectory().require("ops"))
@@ -57,6 +66,40 @@ class CliOperatorDirectoryTest {
     }
 
     @Test
+    void windowsSidMatchingIsCaseInsensitiveAndNamespaceExact() {
+        CliOperatorDirectory directory = new CliOperatorDirectory();
+        directory.setOperators(List.of(operator(SID_TWO, "user_demo_teacher_02", "乙")));
+
+        assertThat(directory.require(SID_TWO).subjectId()).isEqualTo("user_demo_teacher_02");
+        assertThat(directory.require(SID_TWO.toUpperCase(Locale.ROOT)).subjectId())
+                .isEqualTo("user_demo_teacher_02");
+        assertThat(directory.require(" sid:" + SID_TWO.substring("sid:".length()) + " ").subjectId())
+                .isEqualTo("user_demo_teacher_02");
+
+        assertThatThrownBy(() -> directory.require(SID_ONE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("未获注册审核授权");
+        assertThatThrownBy(() -> directory.require("Administrator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("未获注册审核授权");
+        assertThatThrownBy(() -> directory.require("X99\\Administrator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("未获注册审核授权");
+    }
+
+    @Test
+    void displayFormNeverWorksAsTheProtectedIdentity() {
+        CliOperatorDirectory real = directory(CliOperatorDirectory.currentOsUser(), "user_demo_teacher_01", "甲");
+        assertThat(real.requireCurrent().subjectId()).isEqualTo("user_demo_teacher_01");
+
+        CliOperatorDirectory displayOnly = directory("P62FORGED\\p62_forged_operator", "user_demo_teacher_02", "乙");
+        assertThatThrownBy(displayOnly::requireCurrent)
+                .as("域\\账户名只是显示形式，不能当作受保护身份")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("未获注册审核授权");
+    }
+
+    @Test
     void forgedUserNameDoesNotChangeProtectedReviewer() {
         String previous = System.setProperty("user.name", "p62_forged_operator");
         try {
@@ -67,6 +110,35 @@ class CliOperatorDirectoryTest {
         } finally {
             System.setProperty("user.name", previous);
         }
+    }
+
+    @Test
+    void currentIdentityComesFromNativeTokenNotFromUserNameProperty() {
+        String previous = System.setProperty("user.name", "p62_forged_operator");
+        try {
+            String identity = CliOperatorDirectory.currentOsUser();
+
+            assertThat(identity).isNotBlank().isNotEqualTo("p62_forged_operator");
+            assertThat(identity).isEqualTo(TrustedOsIdentity.normalize(identity));
+        } finally {
+            System.setProperty("user.name", previous);
+        }
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void windowsIdentityIsTheProcessTokenSid() throws Exception {
+        String identity = CliOperatorDirectory.currentOsUser();
+        com.sun.security.auth.module.NTSystem token = new com.sun.security.auth.module.NTSystem();
+
+        assertThat(identity).startsWith(TrustedOsIdentity.WINDOWS_PREFIX);
+        assertThat(identity).matches("sid:s-1-[0-9]+(-[0-9]+)+");
+        assertThat(identity).isEqualTo(
+                TrustedOsIdentity.WINDOWS_PREFIX + token.getUserSID().toLowerCase(Locale.ROOT));
+        assertThat(identity).isNotEqualTo(token.getName());
+        assertThat(identity).isNotEqualTo(token.getDomain() + "\\" + token.getName());
+        assertThat(identity).isNotEqualTo(System.getenv("USERNAME"));
+        assertThat(identity).isNotEqualTo(System.getenv("USERDOMAIN") + "\\" + System.getenv("USERNAME"));
     }
 
     @Test

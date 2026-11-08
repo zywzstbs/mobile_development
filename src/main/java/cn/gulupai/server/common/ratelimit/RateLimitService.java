@@ -25,6 +25,7 @@ import java.util.UUID;
 public class RateLimitService {
 
     public static final String LOGIN_RULE = "LOGIN";
+    public static final String ADMIN_REAUTH_RULE = "ADMIN_REAUTH";
 
     private final JdbcTemplate jdbcTemplate;
     private final AuthProperties properties;
@@ -172,6 +173,67 @@ public class RateLimitService {
             long seconds = Math.max(1, window.toSeconds());
             throw new RetryAfterException(ApiCode.RATE_LIMITED, ApiCode.RATE_LIMITED.defaultMessage(), seconds);
         }
+    }
+
+    public void checkBlocked(String subjectHash, String rule) {
+        Instant now = clock.instant();
+        List<Instant> blocked = jdbcTemplate.query("""
+                        SELECT blocked_until
+                        FROM rate_window
+                        WHERE subject_hash = ? AND rule = ?
+                          AND blocked_until IS NOT NULL
+                        ORDER BY blocked_until DESC
+                        LIMIT 1
+                        """,
+                (rs, rowNum) -> rs.getObject("blocked_until", OffsetDateTime.class).toInstant(),
+                subjectHash, rule);
+        if (blocked.isEmpty() || blocked.getFirst() == null || !blocked.getFirst().isAfter(now)) {
+            return;
+        }
+        long seconds = Math.max(1, (Duration.between(now, blocked.getFirst()).toMillis() + 999) / 1000);
+        throw new RetryAfterException(ApiCode.RATE_LIMITED, ApiCode.RATE_LIMITED.defaultMessage(), seconds);
+    }
+
+    @Transactional
+    public void recordWindowFailure(String subjectHash, String rule, int maxFailures, Duration window, Duration block) {
+        Instant now = clock.instant();
+        long windowSeconds = Math.max(1, window.toSeconds());
+        Instant windowStart = Instant.ofEpochSecond((now.getEpochSecond() / windowSeconds) * windowSeconds);
+        jdbcTemplate.query("SELECT pg_advisory_xact_lock(?)",
+                (ResultSetExtractor<Void>) rs -> null,
+                Hashing.advisoryLockKey("RATE|" + subjectHash + "|" + rule + "|" + windowStart));
+        List<FailureWindow> existing = jdbcTemplate.query("""
+                        SELECT id, count, blocked_until
+                        FROM rate_window
+                        WHERE subject_hash = ? AND rule = ? AND window_start = ?
+                        FOR UPDATE
+                        """,
+                (rs, rowNum) -> new FailureWindow(
+                        rs.getString("id"),
+                        rs.getInt("count"),
+                        rs.getObject("blocked_until", OffsetDateTime.class) == null
+                                ? null
+                                : rs.getObject("blocked_until", OffsetDateTime.class).toInstant()),
+                subjectHash, rule, OffsetDateTime.ofInstant(windowStart, ZoneOffset.UTC));
+        if (existing.isEmpty()) {
+            int count = 1;
+            Instant blockedUntil = count >= maxFailures ? now.plus(block) : null;
+            jdbcTemplate.update("""
+                    INSERT INTO rate_window
+                        (id, subject_hash, rule, window_start, count, blocked_until, revision)
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                    """, UUID.randomUUID().toString(), subjectHash, rule,
+                    OffsetDateTime.ofInstant(windowStart, ZoneOffset.UTC), count, toOffset(blockedUntil));
+            return;
+        }
+        FailureWindow current = existing.getFirst();
+        int count = current.count() + 1;
+        Instant blockedUntil = count >= maxFailures ? now.plus(block) : current.blockedUntil();
+        jdbcTemplate.update("""
+                UPDATE rate_window
+                SET count = ?, blocked_until = ?, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """, count, toOffset(blockedUntil), current.id());
     }
 
     @Transactional

@@ -16,7 +16,13 @@ public final class TestSchemaCleaner {
 
     public static final int GENERAL_PACK_BASELINE = 2;
 
-    /** 子表必须先于父表删除。父表出现在清单里时，漏写的子表也会先删。 */
+    /**
+     * 子表必须先于父表删除。父表出现在清单里时，漏写的子表也会先删。
+     *
+     * <p>这里只登记"父表被清理时必须一起清掉"的真实外键（V031 后含平台管理授权、再认证与操作记录）。
+     * 新迁移给已登记父表增加引用时，必须同步补边并更新 {@code TestSchemaCleanerTest} 的准确集合断言，
+     * 否则单个用例会残留行、后续 DELETE 触发外键冲突。
+     */
     private static final String[][] CHILD_BEFORE_PARENT = {
             {"help_feedback", "help_article"},
             {"support_history", "support_ticket"},
@@ -30,6 +36,13 @@ public final class TestSchemaCleaner {
             {"cleanup_plan", "stored_file"},
             // registration_application.user_id、school_id 分别引用 app_user、school。
             // registration_receipt 没有外键，不能当成 app_user 的子表自动插入。
+            {"platform_admin_capability", "platform_admin_grant"},
+            {"platform_admin_scope", "platform_admin_grant"},
+            {"platform_admin_scope", "school"},
+            {"platform_admin_grant", "app_user"},
+            {"admin_reauthentication", "app_user"},
+            {"admin_reauthentication", "auth_session"},
+            {"admin_operation", "app_user"},
             {"registration_application", "app_user"},
             {"registration_application", "school"},
             {"app_user", "school"}

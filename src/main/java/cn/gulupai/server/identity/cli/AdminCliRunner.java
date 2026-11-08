@@ -7,6 +7,7 @@ import cn.gulupai.server.governance.PersonnelCaseGrantAdminService;
 import cn.gulupai.server.support.HelpCatalogImportService;
 import cn.gulupai.server.support.OperatorGrantAdminService;
 import cn.gulupai.server.identity.application.RegistrationReviewService;
+import cn.gulupai.server.platform.application.PlatformSuperAdminService;
 import cn.gulupai.server.teaching.application.TeacherClaimReviewService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -20,7 +21,7 @@ import java.nio.file.Path;
 
 /**
  * 受控管理 CLI 入口：
- * {@code java -jar app.jar --spring.profiles.active=cli --app.cli.command=import-users|import-academic|review-teacher-claim|review-registration|list-registrations|school-registration|cleanup-plan|cleanup-cancel|help-import|operator-grant|personnel-case-grant|material-time-recovery|material-time-recovery-audit|demo-seed}
+ * {@code java -jar app.jar --spring.profiles.active=cli --app.cli.command=import-users|import-academic|review-teacher-claim|review-registration|list-registrations|school-registration|cleanup-plan|cleanup-cancel|help-import|operator-grant|personnel-case-grant|material-time-recovery|material-time-recovery-audit|demo-seed|init-super-admin}
  */
 @Component
 @ConditionalOnProperty(prefix = "app.cli", name = "enabled", havingValue = "true")
@@ -96,7 +97,7 @@ public class AdminCliRunner implements ApplicationRunner {
         try {
             if (command == null || command.isBlank()) {
                 throw new IllegalArgumentException(
-                        "缺少 --app.cli.command；支持 import-users、import-academic、review-teacher-claim、review-registration、list-registrations、school-registration、cleanup-plan、cleanup-cancel、help-import、operator-grant、personnel-case-grant、material-time-recovery、material-time-recovery-audit、demo-seed");
+                        "缺少 --app.cli.command；支持 import-users、import-academic、review-teacher-claim、review-registration、list-registrations、school-registration、cleanup-plan、cleanup-cancel、help-import、operator-grant、personnel-case-grant、material-time-recovery、material-time-recovery-audit、demo-seed、init-super-admin");
             }
             switch (command) {
                 case "import-users" -> {
@@ -241,6 +242,21 @@ public class AdminCliRunner implements ApplicationRunner {
                             materialTimeRecoveryAuditService.audit();
                     System.out.println(report.describe());
                     report.items().forEach(item -> System.out.println(item.describe()));
+                }
+                case "init-super-admin" -> {
+                    rejectClaimedActor(args);
+                    String userId = option(args, "app.cli.user-id");
+                    String reason = option(args, "app.cli.reason");
+                    if (userId.isBlank() || reason.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "init-super-admin 需要 --app.cli.user-id 和 --app.cli.reason");
+                    }
+                    if (context == null) {
+                        throw new IllegalStateException("CLI 容器不可用");
+                    }
+                    CliOperatorDirectory.Reviewer reviewer = operatorDirectory.requireCurrent();
+                    System.out.println(context.getBean(PlatformSuperAdminService.class)
+                            .grantInitial(reviewer.subjectId(), userId, reason, dryRun).describe());
                 }
                 case "demo-seed" -> {
                     String scenario = option(args, "app.cli.scenario");

@@ -1,6 +1,11 @@
 # 咕噜派后端（gulupai-server）
 
-当前部署：`https://124.220.167.12/api/v1`，P62 / V030，299项完整回归通过；学生注册和教师申请已开放。原18服务器已弃用。见 [本次发布与审核说明](deploy/2026-11-04-P62更新验收.md)。下文保留分阶段历史交付记录。
+> 当前状态（2026-11-07）：后端修复版 **p71fix-20261107T073331Z / V031** 已部署到 124 服务器。独立完整 `verify` 单元 127、集成 301 全部通过，R1/R2/R3 本轮代码修复已复审。P71 管理写入联合协议与客户端开放仍按后续批次推进。见[部署验收](deploy/2026-11-07-P71修复部署验收.md)、[文档导航](docs/README.md)、[修改3](docs/修改3/README.md)及[Windows开发](docs/Windows开发.md)。下文 W01/P00～P16 与旧测试数量按历史范围阅读。
+
+
+最近部署记录（2026-11-07）：`https://124.220.167.12/api/v1`，健康检查版本 `p71fix-20261107T073331Z`，数据库 V031；学生注册和教师申请开放。线上 21 个原账号、通知读取和旧文件下载验证通过，公网 HTTPS 200、匿名本人接口 401。见 [本次部署验收](deploy/2026-11-07-P71修复部署验收.md)。下文保留分阶段历史交付记录。
+
+## 历史阶段记录（以下为原W01/P00～P16说明）
 
 按 `docs/backend` 分阶段实现的课程演示后端。**281 个接口均已实现**；2026-11-02 完成 R01～R08、S01～S06、T01～T06、U01～U02 与 W01 五轮定向修复，并在独立一次性 PostgreSQL 17 上跑通全量 `verify`：**245 项测试通过（46 单元/MVC + 199 真实 PG 集成）**。W01 的加密回执证据校验和恢复事务已完成；**真实/待升级库的 `RECOVERED_EVIDENCE` 存量核查与必要纠错仍待部署前执行**。这只是“后端验证通过”，**Android 联调仍未执行**；2026-11-03 已部署 AWS 公网 IP HTTPS，详见 [部署说明](deploy/README.md)。
 
@@ -35,22 +40,22 @@ curl -s http://localhost:8080/health
 
 ```bash
 # 1) 学校/用户
-java -jar target/gulupai-server-0.1.0-P10.jar --spring.profiles.active=cli \
+java -jar target/gulupai-server-0.1.0-P16.jar --spring.profiles.active=cli \
   --app.cli.command=import-users --app.cli.file=admin/fixtures/p01-demo-users.json
 # 2) 学期/节次/课程/真实教学班/选课事实
-java -jar target/gulupai-server-0.1.0-P10.jar --spring.profiles.active=cli \
+java -jar target/gulupai-server-0.1.0-P16.jar --spring.profiles.active=cli \
   --app.cli.command=import-academic --app.cli.file=admin/fixtures/p02-demo-academic.json
 # 3) 教师认领审核
-java -jar target/gulupai-server-0.1.0-P10.jar --spring.profiles.active=cli \
+java -jar target/gulupai-server-0.1.0-P16.jar --spring.profiles.active=cli \
   --app.cli.command=review-teacher-claim --app.cli.claim-id=<id> \
   --app.cli.decision=APPROVE --app.cli.reason="核对名单"
 # 4) W01 受控恢复历史材料提交时间：回执必须绑定同材料/版本/作者，
 #    且解密结果的顶层 responseVersion 与目标版本一致；恢复时间取结果中的 createdAt
-java -jar target/gulupai-server-0.1.0-P10.jar --spring.profiles.active=cli \
+java -jar target/gulupai-server-0.1.0-P16.jar --spring.profiles.active=cli \
   --app.cli.command=material-time-recovery --app.cli.material-id=<materialId> \
   --app.cli.response-version=1 --app.cli.receipt-id=<operationReceiptId> --app.cli.dry-run=true
 # 5) W01 只读核查已恢复行：VALID / CORRECTION_REQUIRED / UNVERIFIABLE，不写业务数据
-java -jar target/gulupai-server-0.1.0-P10.jar --spring.profiles.active=cli \
+java -jar target/gulupai-server-0.1.0-P16.jar --spring.profiles.active=cli \
   --app.cli.command=material-time-recovery-audit
 ```
 

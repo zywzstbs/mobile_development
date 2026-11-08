@@ -139,7 +139,11 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
-    public ResponseEntity<ApiResponse<?>> handleNotFound(Exception ex) {
+    public ResponseEntity<ApiResponse<?>> handleNotFound(Exception ex, HttpServletRequest request) {
+        String uri = request.getRequestURI() == null ? "" : request.getRequestURI();
+        if (uri.equals("/api/v1/admin") || uri.startsWith("/api/v1/admin/")) {
+            return error(ApiCode.PATH_NOT_FOUND, ApiCode.PATH_NOT_FOUND.defaultMessage());
+        }
         return error(ApiCode.NOT_FOUND, ApiCode.NOT_FOUND.defaultMessage());
     }
 

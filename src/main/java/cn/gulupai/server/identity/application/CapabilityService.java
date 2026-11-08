@@ -29,6 +29,16 @@ public class CapabilityService {
         if (support != null && support > 0) {
             capabilities.add("SUPPORT_HANDLE");
         }
+        List<String> platform = jdbc.query("""
+                SELECT c.capability
+                FROM platform_admin_capability c
+                JOIN platform_admin_grant g ON g.id = c.grant_id
+                JOIN app_user u ON u.id = g.user_id
+                WHERE g.user_id = ? AND g.status = 'ACTIVE'
+                  AND u.disabled = false AND u.account_status = 'ACTIVE'
+                ORDER BY c.capability
+                """, (rs, row) -> rs.getString("capability"), userId);
+        capabilities.addAll(platform);
         return List.copyOf(capabilities);
     }
 

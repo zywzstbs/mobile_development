@@ -30,9 +30,14 @@ public enum ApiCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "无权执行此操作"),
     RECUSAL_REQUIRED(HttpStatus.FORBIDDEN, "该操作需要回避"),
     SELF_REVIEW_FORBIDDEN(HttpStatus.FORBIDDEN, "不能验收本人参与的交付"),
+    REAUTH_REQUIRED(HttpStatus.FORBIDDEN, "需要重新验证身份后才能执行"),
+    REAUTH_EXPIRED(HttpStatus.FORBIDDEN, "重新验证已过期"),
+    REAUTH_CONTEXT_MISMATCH(HttpStatus.FORBIDDEN, "重新验证与当前操作不一致"),
 
     // ---- 404 ----
     NOT_FOUND(HttpStatus.NOT_FOUND, "资源不存在"),
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "资源不存在"),
+    PATH_NOT_FOUND(HttpStatus.NOT_FOUND, "请求路径不存在"),
 
     // ---- 409 版本/状态/唯一性 ----
     RESOURCE_CHANGED(HttpStatus.CONFLICT, "内容已更新，请重新读取后确认"),
@@ -40,6 +45,9 @@ public enum ApiCode {
     DRAFT_CONFLICT(HttpStatus.CONFLICT, "草稿已在其他位置更新"),
     PREVIEW_STALE(HttpStatus.CONFLICT, "预览已过期，请重新预览"),
     IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "同一幂等键已用于其他请求"),
+    REVISION_CONFLICT(HttpStatus.CONFLICT, "内容已更新，请重新读取后确认"),
+    INVALID_STATE_TRANSITION(HttpStatus.CONFLICT, "当前状态不允许此变更"),
+    LAST_ACTIVE_SUPER_ADMIN(HttpStatus.CONFLICT, "必须保留至少一位可恢复管理的超级管理员"),
     CLIENT_MESSAGE_ID_REUSED(HttpStatus.CONFLICT, "客户端消息标识已用于其他内容"),
     CLIENT_REQUEST_ID_REUSED(HttpStatus.CONFLICT, "客户端请求标识已用于其他内容"),
     OPERATION_IN_PROGRESS(HttpStatus.CONFLICT, "同一操作正在处理中"),
@@ -97,6 +105,7 @@ public enum ApiCode {
 
     // ---- 500 ----
     SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "服务器无法完成请求"),
+    ENDPOINT_NOT_IMPLEMENTED(HttpStatus.NOT_IMPLEMENTED, "该管理功能尚未开放"),
 
     // ---- 传输层补充 ----
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "请求方法不支持"),

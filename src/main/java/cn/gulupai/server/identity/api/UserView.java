@@ -6,6 +6,7 @@ public record UserView(
         String id,
         String displayName,
         String schoolId,
+        String accountStatus,
         String identityStatus,
         List<String> roles,
         List<String> skills,

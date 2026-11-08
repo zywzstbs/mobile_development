@@ -318,7 +318,8 @@ class AuthP01IT {
     @Test
     void disabledUserIsRejectedImmediately() throws Exception {
         SessionView session = login(LOGIN, PASSWORD);
-        jdbcTemplate.update("UPDATE app_user SET disabled = true WHERE login_id = ?", LOGIN);
+        jdbcTemplate.update(
+                "UPDATE app_user SET disabled = true, account_status = 'DISABLED' WHERE login_id = ?", LOGIN);
 
         mockMvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + session.accessToken()))
                 .andExpect(status().isUnauthorized())

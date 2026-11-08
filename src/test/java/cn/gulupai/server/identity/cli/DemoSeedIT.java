@@ -13,10 +13,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
@@ -59,7 +69,8 @@ class DemoSeedIT {
         String password = passwordOf(credentials, "operator_full_01");
         assertThat(applied.describe()).isEqualTo("演示种子：full 用户21 真实班2 选课18 广场4 dryRun=false");
         assertThat(applied.describe()).doesNotContain(password);
-        assertThat(Files.getPosixFilePermissions(credentials)).containsExactlyInAnyOrder(OWNER_READ, OWNER_WRITE);
+        assertPrivateCredentialFile(credentials);
+        assertThat(temporaryJsonDirectories()).isEmpty();
 
         assertThat(count("app_user")).isEqualTo(21);
         assertThat(count("verified_course")).isEqualTo(2);
@@ -102,9 +113,86 @@ class DemoSeedIT {
         String firstPassword = passwordOf(credentials, "student_full_01");
         seedService.seed("full", false, credentials, "cli");
         assertThat(passwordOf(credentials, "student_full_01")).isEqualTo(firstPassword);
+        assertPrivateCredentialFile(credentials);
         assertThat(count("square")).isEqualTo(4);
         assertThat(count("project")).isEqualTo(2);
         assertThat(count("app_user")).isEqualTo(21);
+    }
+
+    /**
+     * 上一轮遗留的宽权限凭据文件必须在复用前收紧：既保留既有口令，也不再把明文暴露给其他主体。
+     */
+    @Test
+    void existingWideCredentialFileIsTightenedBeforeReuse(@TempDir Path temp) throws Exception {
+        Path credentials = temp.resolve("legacy-credentials.txt");
+        Files.writeString(credentials, "# 既有凭据\nstudent_full_01 ExistingPassw0rdValue\n");
+        widenCredentialFile(credentials, temp);
+        assertThat(readableByForeignPrincipals(credentials))
+                .as("前置条件：文件在收紧前对其他主体可读").isTrue();
+
+        seedService.seed("full", false, credentials, "cli");
+
+        assertPrivateCredentialFile(credentials);
+        assertThat(readableByForeignPrincipals(credentials)).isFalse();
+        assertThat(passwordOf(credentials, "student_full_01")).isEqualTo("ExistingPassw0rdValue");
+        assertThat(count("app_user")).isEqualTo(21);
+    }
+
+    /** 平台相关的私有权限断言：POSIX 检查 0600，Windows 检查 DACL 只剩当前可信主体一条允许规则。 */
+    private static void assertPrivateCredentialFile(Path file) throws Exception {
+        if (Files.getFileAttributeView(file, PosixFileAttributeView.class) != null) {
+            assertThat(Files.getPosixFilePermissions(file)).containsExactlyInAnyOrder(OWNER_READ, OWNER_WRITE);
+            return;
+        }
+        AclFileAttributeView view = Files.getFileAttributeView(file, AclFileAttributeView.class);
+        assertThat(view).as("Windows 上凭据文件必须有 ACL 视图").isNotNull();
+        List<AclEntry> acl = view.getAcl();
+        assertThat(acl).as("凭据文件 ACL 只能保留当前用户一条允许规则").hasSize(1);
+        AclEntry entry = acl.getFirst();
+        assertThat(entry.type()).isEqualTo(AclEntryType.ALLOW);
+        assertThat(entry.flags()).isEmpty();
+        assertThat(entry.principal()).isEqualTo(trustedPrincipal());
+        assertThat(entry.permissions())
+                .contains(AclEntryPermission.READ_DATA, AclEntryPermission.WRITE_DATA);
+        // 生产实现的独立复核：条目数、主体、继承标志、权限集合都必须符合私有策略。
+        PrivateCredentialFiles.verifyPrivateFile(file);
+    }
+
+    private static void widenCredentialFile(Path file, Path parent) throws IOException {
+        if (Files.getFileAttributeView(file, PosixFileAttributeView.class) != null) {
+            Files.setPosixFilePermissions(file, Set.of(OWNER_READ, OWNER_WRITE,
+                    PosixFilePermission.GROUP_READ, PosixFilePermission.OTHERS_READ));
+            return;
+        }
+        Files.getFileAttributeView(file, AclFileAttributeView.class)
+                .setAcl(Files.getFileAttributeView(parent, AclFileAttributeView.class).getAcl());
+    }
+
+    private static boolean readableByForeignPrincipals(Path file) throws IOException {
+        if (Files.getFileAttributeView(file, PosixFileAttributeView.class) != null) {
+            return Files.getPosixFilePermissions(file).stream()
+                    .anyMatch(permission -> permission == PosixFilePermission.GROUP_READ
+                            || permission == PosixFilePermission.OTHERS_READ);
+        }
+        UserPrincipal trusted = trustedPrincipal();
+        return Files.getFileAttributeView(file, AclFileAttributeView.class).getAcl().stream()
+                .filter(entry -> entry.type() == AclEntryType.ALLOW)
+                .filter(entry -> !entry.principal().equals(trusted))
+                .anyMatch(entry -> entry.permissions().contains(AclEntryPermission.READ_DATA));
+    }
+
+    private static UserPrincipal trustedPrincipal() throws IOException {
+        return FileSystems.getDefault().getUserPrincipalLookupService()
+                .lookupPrincipalByName(TrustedOsIdentity.windowsAccountName());
+    }
+
+    /** 播种过程中创建的私有临时目录必须全部清理。 */
+    private static List<Path> temporaryJsonDirectories() throws IOException {
+        Path base = Path.of(System.getProperty("java.io.tmpdir"));
+        try (Stream<Path> children = Files.list(base)) {
+            return children.filter(path -> path.getFileName().toString().startsWith("gulupai-private-"))
+                    .toList();
+        }
     }
 
     private static String passwordOf(Path file, String loginId) throws Exception {

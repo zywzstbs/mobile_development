@@ -465,7 +465,7 @@ class SupportRound3IT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.selectedExcerpt").value("SECRET_EXCERPT"));
 
-        jdbc.update("UPDATE app_user SET disabled=true WHERE id=?", STUDENT);
+        jdbc.update("UPDATE app_user SET disabled=true, account_status='DISABLED' WHERE id=?", STUDENT);
         MvcResult disabled = mockMvc.perform(get("/api/v1/content-reports/report_assigned")
                         .header("Authorization", bearer(reporter)))
                 .andExpect(status().isUnauthorized()).andReturn();

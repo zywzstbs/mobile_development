@@ -25,10 +25,21 @@ public class UserProjectionService {
                 user.id(),
                 user.displayName(),
                 user.schoolId(),
+                accountStatus(user),
                 user.identityStatus().name(),
                 roles.stream().map(Enum::name).toList(),
                 user.skills(),
                 user.revision(),
                 capabilityService.forUser(user.id()));
+    }
+
+    /**
+     * 账号状态与身份核验分开。历史停用若仍写成 ACTIVE，投影为 DISABLED，不把停用账号显示成可用。
+     */
+    private static String accountStatus(UserRow user) {
+        if (user.disabled() && "ACTIVE".equals(user.accountStatus())) {
+            return "DISABLED";
+        }
+        return user.accountStatus();
     }
 }

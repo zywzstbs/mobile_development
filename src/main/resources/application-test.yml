@@ -12,6 +12,12 @@ spring:
 
 app:
   environment: ${APP_ENV:test}
+  notice:
+    outbox:
+      # 集成测试不注册后台 outbox 轮询：轮询事务会与用例清库交叉。
+      # 需要投递的用例显式调用 NoticeOutboxWorker#drain()；调度本身由
+      # NoticeOutboxSchedulingIT 用独立上下文显式开启验证。
+      scheduling-enabled: false
   files:
     root: target/test-files
     public-base-url: https://files.test

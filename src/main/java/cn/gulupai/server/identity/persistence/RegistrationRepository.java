@@ -67,12 +67,18 @@ public class RegistrationRepository {
 
     public void insertUser(String id, String schoolId, String loginId, String displayName,
                            String passwordHash, String accountStatus) {
+        String eligibility = switch (accountStatus) {
+            case "PENDING_REVIEW" -> "REGISTRATION_PENDING";
+            case "REJECTED" -> "REGISTRATION_REJECTED";
+            case "ACTIVE" -> "VERIFIED_ACTIVE";
+            default -> throw new IllegalArgumentException("accountStatus 无效");
+        };
         jdbc.update("""
                 INSERT INTO app_user
                     (id, school_id, login_id, display_name, password_hash, identity_status,
-                     disabled, account_status, skills_json, revision)
-                VALUES (?, ?, ?, ?, ?, 'PENDING', false, ?, '[]'::jsonb, 1)
-                """, id, schoolId, loginId, displayName, passwordHash, accountStatus);
+                     disabled, account_status, eligibility_source, skills_json, revision)
+                VALUES (?, ?, ?, ?, ?, 'PENDING', false, ?, ?, '[]'::jsonb, 1)
+                """, id, schoolId, loginId, displayName, passwordHash, accountStatus, eligibility);
     }
 
     public void insertRole(String userId, String role) {
@@ -117,11 +123,16 @@ public class RegistrationRepository {
                 """, status, reviewer, ts(at), reason, id, expectedRevision);
     }
 
-    public int updateAccountStatus(String userId, String accountStatus) {
+    /**
+     * 只推进仍在待审且未被停用的账号。停用账号不能靠审核通过被恢复。
+     */
+    public int updatePendingAccount(String userId, String accountStatus, String eligibility) {
         return jdbc.update("""
-                UPDATE app_user SET account_status = ?, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """, accountStatus, userId);
+                UPDATE app_user
+                SET account_status = ?, eligibility_source = ?, revision = revision + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND disabled = false AND account_status = 'PENDING_REVIEW'
+                """, accountStatus, eligibility, userId);
     }
 
     public void revokeSessions(String userId, Instant now) {

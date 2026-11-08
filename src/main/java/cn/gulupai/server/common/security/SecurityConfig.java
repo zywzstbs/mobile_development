@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/sessions", "/api/v1/auth/sessions/refresh",
                                 "/api/v1/auth/registrations").permitAll()
+                        // /auth/reauthentications 必须保持登录，不能因为挂在 /auth 下就匿名放行。
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/registration-options").permitAll()
                         // 公共帮助读取白名单；写作接口仍要求登录与独立能力。
                         .requestMatchers(HttpMethod.GET,
